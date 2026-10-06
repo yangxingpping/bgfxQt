@@ -208,6 +208,161 @@ void BgfxWindow::drawModel()
     bgfx::submit(0, m_program);
 }
 
+void BgfxWindow::drawAxis3D()
+{
+    // Build the axis gizmo once: three colored axes (X red, Y green, Z blue),
+    // each a box shaft with a square-pyramid tip, generated around the local
+    // origin. The whole gizmo is then translated to the orbit target.
+    if (!m_axisBuilt)
+    {
+        struct AxisVertex
+        {
+            float    x, y, z;
+            uint32_t abgr;
+        };
+
+        std::vector<AxisVertex> verts;
+        std::vector<uint16_t>   indices;
+
+        auto packColor = [](uint8_t r, uint8_t g, uint8_t b) -> uint32_t
+        {
+            return (uint32_t(255) << 24) |
+                   (uint32_t(b)   << 16) |
+                   (uint32_t(g)   << 8)  |
+                    uint32_t(r);
+        };
+
+        const uint32_t colX = packColor(220,  60,  60);
+        const uint32_t colY = packColor( 60, 200,  60);
+        const uint32_t colZ = packColor( 60, 110, 230);
+
+        // Dimensions.
+        const float shaftLen   = 1.6f;
+        const float shaftHalf  = 0.035f;
+        const float tipLen     = 0.30f;
+        const float tipRadius  = 0.11f;
+
+        auto addBox = [&](uint32_t color,
+                          float x0, float y0, float z0,
+                          float x1, float y1, float z1)
+        {
+            const uint32_t base = uint32_t(verts.size());
+            verts.push_back({x0, y0, z0, color});
+            verts.push_back({x1, y0, z0, color});
+            verts.push_back({x1, y1, z0, color});
+            verts.push_back({x0, y1, z0, color});
+            verts.push_back({x0, y0, z1, color});
+            verts.push_back({x1, y0, z1, color});
+            verts.push_back({x1, y1, z1, color});
+            verts.push_back({x0, y1, z1, color});
+
+            const uint16_t b[8] = {
+                uint16_t(base+0), uint16_t(base+1), uint16_t(base+2), uint16_t(base+3),
+                uint16_t(base+4), uint16_t(base+5), uint16_t(base+6), uint16_t(base+7)
+            };
+            // -Z, +Z, -Y, +Y, -X, +X
+            indices.insert(indices.end(), {b[0],b[3],b[2], b[0],b[2],b[1]});
+            indices.insert(indices.end(), {b[4],b[5],b[6], b[4],b[6],b[7]});
+            indices.insert(indices.end(), {b[0],b[1],b[5], b[0],b[5],b[4]});
+            indices.insert(indices.end(), {b[3],b[7],b[6], b[3],b[6],b[2]});
+            indices.insert(indices.end(), {b[0],b[4],b[7], b[0],b[7],b[3]});
+            indices.insert(indices.end(), {b[1],b[2],b[6], b[1],b[6],b[5]});
+        };
+
+        // addPyramid: square base at (cx,cy,cz) in the plane perpendicular to
+        // axis 'dir', apex extending tipLen beyond the base along 'dir'.
+        // dir is one of +X, +Y, +Z.
+        auto addPyramid = [&](uint32_t color, char dir,
+                              float cx, float cy, float cz,
+                              float radius, float len)
+        {
+            float b0[3], b1[3], b2[3], b3[3], apex[3];
+            if (dir == 'x')
+            {
+                b0[0]=cx; b0[1]=cy+radius; b0[2]=cz+radius;
+                b1[0]=cx; b1[1]=cy-radius; b1[2]=cz+radius;
+                b2[0]=cx; b2[1]=cy-radius; b2[2]=cz-radius;
+                b3[0]=cx; b3[1]=cy+radius; b3[2]=cz-radius;
+                apex[0]=cx+len; apex[1]=cy; apex[2]=cz;
+            }
+            else if (dir == 'y')
+            {
+                b0[0]=cx+radius; b0[1]=cy; b0[2]=cz+radius;
+                b1[0]=cx-radius; b1[1]=cy; b1[2]=cz+radius;
+                b2[0]=cx-radius; b2[1]=cy; b2[2]=cz-radius;
+                b3[0]=cx+radius; b3[1]=cy; b3[2]=cz-radius;
+                apex[0]=cx; apex[1]=cy+len; apex[2]=cz;
+            }
+            else // 'z'
+            {
+                b0[0]=cx+radius; b0[1]=cy+radius; b0[2]=cz;
+                b1[0]=cx-radius; b1[1]=cy+radius; b1[2]=cz;
+                b2[0]=cx-radius; b2[1]=cy-radius; b2[2]=cz;
+                b3[0]=cx+radius; b3[1]=cy-radius; b3[2]=cz;
+                apex[0]=cx; apex[1]=cy; apex[2]=cz+len;
+            }
+
+            const uint32_t base = uint32_t(verts.size());
+            verts.push_back({b0[0], b0[1], b0[2], color});
+            verts.push_back({b1[0], b1[1], b1[2], color});
+            verts.push_back({b2[0], b2[1], b2[2], color});
+            verts.push_back({b3[0], b3[1], b3[2], color});
+            verts.push_back({apex[0], apex[1], apex[2], color});
+
+            const uint16_t i0 = uint16_t(base+0);
+            const uint16_t i1 = uint16_t(base+1);
+            const uint16_t i2 = uint16_t(base+2);
+            const uint16_t i3 = uint16_t(base+3);
+            const uint16_t ia = uint16_t(base+4);
+            // Base cap + four side faces.
+            indices.insert(indices.end(), {i0, i2, i1, i0, i3, i2});
+            indices.insert(indices.end(), {i0, i1, ia, i1, i2, ia,
+                                            i2, i3, ia, i3, i0, ia});
+        };
+
+        // X axis (red)
+        addBox    (colX, 0.0f, -shaftHalf, -shaftHalf, shaftLen, shaftHalf, shaftHalf);
+        addPyramid(colX, 'x', shaftLen, 0.0f, 0.0f, tipRadius, tipLen);
+
+        // Y axis (green)
+        addBox    (colY, -shaftHalf, 0.0f, -shaftHalf, shaftHalf, shaftLen, shaftHalf);
+        addPyramid(colY, 'y', 0.0f, shaftLen, 0.0f, tipRadius, tipLen);
+
+        // Z axis (blue)
+        addBox    (colZ, -shaftHalf, -shaftHalf, 0.0f, shaftHalf, shaftHalf, shaftLen);
+        addPyramid(colZ, 'z', 0.0f, 0.0f, shaftLen, tipRadius, tipLen);
+
+        m_axisLayout
+            .begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
+            .end();
+
+        m_axisVbh = bgfx::createVertexBuffer(
+            bgfx::copy(verts.data(), uint32_t(verts.size() * sizeof(AxisVertex))),
+            m_axisLayout
+        );
+
+        m_axisIbh = bgfx::createIndexBuffer(
+            bgfx::copy(indices.data(), uint32_t(indices.size() * sizeof(uint16_t)))
+        );
+
+        m_axisIndexCount = uint32_t(indices.size());
+        m_axisBuilt = true;
+    }
+
+    // Place the gizmo at the orbit center so it follows panning.
+    float model[16];
+    bx::mtxTranslate(model, m_target.x, m_target.y, m_target.z);
+
+    bgfx::setTransform(model);
+    bgfx::setVertexBuffer(0, m_axisVbh);
+    bgfx::setIndexBuffer(m_axisIbh);
+    bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
+    bgfx::submit(0, m_program);
+}
+
+
 void BgfxWindow::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
@@ -406,6 +561,7 @@ void BgfxWindow::renderFrame()
     bgfx::touch(0);
 
     drawModel();
+    drawAxis3D();
 
     // Render the navigation cube overlay in the top-left corner (view 1).
     m_navCube.render(1, m_cameraYaw, m_cameraPitch,
@@ -560,6 +716,12 @@ void BgfxWindow::shutdownBgfx()
     m_modelVbh = BGFX_INVALID_HANDLE;
     m_modelIbh = BGFX_INVALID_HANDLE;
     m_modelBuilt = false;
+
+    if (bgfx::isValid(m_axisVbh)) bgfx::destroy(m_axisVbh);
+    if (bgfx::isValid(m_axisIbh)) bgfx::destroy(m_axisIbh);
+    m_axisVbh = BGFX_INVALID_HANDLE;
+    m_axisIbh = BGFX_INVALID_HANDLE;
+    m_axisBuilt = false;
 
     bgfx::shutdown();
 

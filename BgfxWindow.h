@@ -41,6 +41,7 @@ private:
     void renderFrame();
     QSize physicalSize() const;
 	void drawModel();
+    void drawAxis3D();
 private:
     bool m_bgfxInitialized = false;
     bool m_cubeInitialized = false;
@@ -60,6 +61,13 @@ private:
     bgfx::IndexBufferHandle  m_modelIbh = BGFX_INVALID_HANDLE;
     uint32_t                 m_modelIndexCount = 0;
     bool                     m_modelBuilt = false;
+
+    // 3D axis gizmo (XYZ) drawn at the orbit target.
+    bgfx::VertexLayout       m_axisLayout;
+    bgfx::VertexBufferHandle m_axisVbh = BGFX_INVALID_HANDLE;
+    bgfx::IndexBufferHandle  m_axisIbh = BGFX_INVALID_HANDLE;
+    uint32_t                 m_axisIndexCount = 0;
+    bool                     m_axisBuilt = false;
 
     // Orbit camera
     bool  m_leftDragging   = false;
