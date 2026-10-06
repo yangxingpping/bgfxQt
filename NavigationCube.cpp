@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <set>
 #include <utility>
 #include <vector>
@@ -150,10 +151,43 @@ void NavigationCube::init(bgfx::ProgramHandle program)
     m_indexCount = numTri * 3;
 
     // ---- Black wireframe edges (line list) ---------------------------------
-    // Extract every unique edge from the triangle list. Adjacent triangles
-    // share an edge, so we deduplicate by storing the sorted index pair.
+    // Only draw crease edges: edges where two adjacent faces meet at a
+    // non-zero dihedral angle. The manifold mesh triangulates the quad/octagon
+    // faces into triangles, and the internal triangulation diagonals are
+    // coplanar with their neighbours (dihedral ~0deg) -- drawing those would
+    // clutter the cube with messy lines, so we filter them out by face-normal
+    // dot product.
     {
-        std::set<std::pair<uint32_t, uint32_t>> edgeSet;
+        // Per-triangle face normals.
+        std::vector<bx::Vec3> triNormals(numTri, {0.0f, 0.0f, 0.0f});
+        for (uint32_t t = 0; t < numTri; ++t)
+        {
+            const uint32_t i0 = gl.triVerts[t * 3 + 0];
+            const uint32_t i1 = gl.triVerts[t * 3 + 1];
+            const uint32_t i2 = gl.triVerts[t * 3 + 2];
+
+            const float* p0 = &gl.vertProperties[i0 * gl.numProp];
+            const float* p1 = &gl.vertProperties[i1 * gl.numProp];
+            const float* p2 = &gl.vertProperties[i2 * gl.numProp];
+
+            const bx::Vec3 e1 = {p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]};
+            const bx::Vec3 e2 = {p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]};
+            bx::Vec3 n = bx::cross(e1, e2);
+            const float len2 = n.x * n.x + n.y * n.y + n.z * n.z;
+            if (len2 > 1e-12f)
+            {
+                const float inv = 1.0f / bx::sqrt(len2);
+                n = {n.x * inv, n.y * inv, n.z * inv};
+            }
+            else
+            {
+                n = {0.0f, 1.0f, 0.0f};
+            }
+            triNormals[t] = n;
+        }
+
+        // Map each unique edge (sorted index pair) to the triangles sharing it.
+        std::map<std::pair<uint32_t, uint32_t>, std::vector<uint32_t>> edgeTris;
         for (uint32_t t = 0; t < numTri; ++t)
         {
             const uint32_t i0 = gl.triVerts[t * 3 + 0];
@@ -162,22 +196,41 @@ void NavigationCube::init(bgfx::ProgramHandle program)
             auto addEdge = [&](uint32_t a, uint32_t b)
             {
                 if (a > b) std::swap(a, b);
-                edgeSet.insert({a, b});
+                edgeTris[{a, b}].push_back(t);
             };
             addEdge(i0, i1);
             addEdge(i1, i2);
             addEdge(i2, i0);
         }
 
+        // Keep an edge only if it is a boundary edge or the dihedral angle
+        // between its two adjacent faces exceeds the threshold (~5deg).
+        const float kCosThreshold = std::cos(5.0f * bx::kPi / 180.0f); // ~0.9962
+
         const uint32_t blackAbgr = (uint32_t(255) << 24); // A=255, B=G=R=0
 
         std::vector<Vertex>   edgeVerts;
         std::vector<uint16_t> edgeIdx;
-        edgeVerts.reserve(edgeSet.size() * 2);
-        edgeIdx.reserve(edgeSet.size() * 2);
 
-        for (const auto& e : edgeSet)
+        for (const auto& entry : edgeTris)
         {
+            const auto& e     = entry.first;
+            const auto& tris  = entry.second;
+
+            bool draw = (tris.size() != 2); // boundary edges always drawn
+            if (tris.size() == 2)
+            {
+                const bx::Vec3& n0 = triNormals[tris[0]];
+                const bx::Vec3& n1 = triNormals[tris[1]];
+                const float dot = bx::dot(n0, n1);
+                // dot < cos(threshold) means angle > threshold -> crease.
+                if (dot < kCosThreshold)
+                    draw = true;
+            }
+
+            if (!draw)
+                continue;
+
             const float* pa = &gl.vertProperties[e.first  * gl.numProp];
             const float* pb = &gl.vertProperties[e.second * gl.numProp];
             edgeVerts.push_back({pa[0], pa[1], pa[2], blackAbgr});
