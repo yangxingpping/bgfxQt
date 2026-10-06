@@ -11,10 +11,10 @@
 namespace
 {
 
-// Chamfer depth as a fraction of the half-edge. The cube spans [-1, 1]; each
-// corner is cut by the plane sx*x + sy*y + sz*z = 3 - kChamfer, producing flat
-// 45-degree bevels on all edges and corners.
-constexpr float kChamfer = 0.18f;
+// Chamfer width = 1/5 of the cube edge length. The cube spans [-1, 1] so its
+// edge length is 2; each corner is cut by the plane sx*x + sy*y + sz*z =
+// 3 - kChamfer, giving flat 45-degree bevels on all edges and corners.
+constexpr float kChamfer = 2.0f / 5.0f;
 
 // Orthographic half-extent (cube is [-1,1], so [-2,2] leaves a margin).
 constexpr float kOrthoHalf = 2.0f;
