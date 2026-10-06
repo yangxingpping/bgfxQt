@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "WLog.h"
 
 #include <QApplication>
 #include <QDebug>
@@ -7,6 +8,7 @@
 
 int main(int argc, char *argv[])
 {
+    wlog::init_rotating_logger("zz.log");
     QApplication a(argc, argv);
 
     // Demonstrate that the manifold library (via vcpkg) is linked and usable.
@@ -18,5 +20,7 @@ int main(int argc, char *argv[])
 
     MainWindow w;
     w.show();
-    return a.exec();
+    auto ret = a.exec();
+    wlog::shutdown();
+    return ret;
 }

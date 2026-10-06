@@ -94,6 +94,7 @@ QSize BgfxWindow::physicalSize() const
 
 void BgfxWindow::drawModel()
 {
+    WLOG_FUNCTION_TIMER();
     if (m_manifold.IsEmpty())
         return;
 

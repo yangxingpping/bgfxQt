@@ -1,7 +1,10 @@
 #pragma once
 
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 #include <chrono>
+#include <memory>
+#include <string>
 
 // =========================================
 // 切面式函数/作用域耗时记录
@@ -9,6 +12,36 @@
 // =========================================
 
 namespace wlog {
+
+/// @brief 初始化带文件轮转的默认日志器（多线程安全 sink）
+/// @param filename   日志文件路径，如 "logs/app.log"
+/// @param maxSize    单个日志文件最大字节数，超出后轮转（默认 5 MB）
+/// @param maxFiles   保留的历史日志文件数量（默认 3 个：app.1.log、app.2.log ...）
+/// @param rotateOnOpen 启动时是否先执行一次轮转（旧文件顺延，新文件从空开始）
+/// @code
+/// wlog::init_rotating_logger("logs/app.log");
+/// spdlog::info("hello file");  // 写入 logs/app.log
+/// @endcode
+inline void init_rotating_logger(const std::string& filename,
+                                 size_t             maxSize      = 5ull * 1024 * 1024,
+                                 size_t             maxFiles     = 3,
+                                 bool               rotateOnOpen = false)
+{
+    auto sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+        filename, maxSize, maxFiles, rotateOnOpen);
+
+    auto logger = std::make_shared<spdlog::logger>("wlog", sink);
+    logger->set_level(spdlog::level::trace);
+    logger->flush_on(spdlog::level::warn); // warn 及以上立即刷盘
+    spdlog::set_default_logger(logger);
+}
+
+/// @brief 关闭并刷盘所有日志器（程序退出前调用）
+inline void shutdown()
+{
+    spdlog::default_logger()->flush();
+    spdlog::shutdown();
+}
 
 class ScopedTimer {
 public:
