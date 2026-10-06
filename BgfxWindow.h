@@ -4,6 +4,7 @@
 #include <QPoint>
 
 #include <bgfx/bgfx.h>
+#include <bx/math.h>
 
 QT_BEGIN_NAMESPACE
 class QMouseEvent;
@@ -54,7 +55,9 @@ private:
 
     // Orbit camera
     bool  m_leftDragging   = false;
+    bool  m_rightDragging  = false;
     QPoint m_lastMousePos;
+    bx::Vec3 m_target      = {0.0f, 0.0f, 0.0f};
     float m_cameraDistance = 5.0f;
     float m_cameraYaw      = 0.0f;   // radians, around Y
     float m_cameraPitch    = 0.0f;   // radians

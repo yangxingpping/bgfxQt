@@ -255,15 +255,15 @@ void BgfxWindow::renderFrame()
         double(bx::getHPCounter() - m_timeOffset) / double(bx::getHPFrequency())
     );
 
-    // Orbit camera: rotate around the target (origin).
+    // Orbit camera: rotate around m_target (which is moved by right-drag panning).
     // bgfx is right-handed with the camera looking towards +Z, so at yaw=0
-    // the camera sits on the negative Z axis.
-    const bx::Vec3 at = {0.0f, 0.0f, 0.0f};
+    // the camera sits on the negative Z axis relative to the target.
+    const bx::Vec3 at = m_target;
     const bx::Vec3 eye =
     {
-        m_cameraDistance * bx::sin(m_cameraYaw)   * bx::cos(m_cameraPitch),
-        m_cameraDistance * bx::sin(m_cameraPitch),
-        -m_cameraDistance * bx::cos(m_cameraYaw)  * bx::cos(m_cameraPitch)
+        m_target.x + m_cameraDistance * bx::sin(m_cameraYaw)   * bx::cos(m_cameraPitch),
+        m_target.y + m_cameraDistance * bx::sin(m_cameraPitch),
+        m_target.z - m_cameraDistance * bx::cos(m_cameraYaw)   * bx::cos(m_cameraPitch)
     };
 
     float view[16];
@@ -303,11 +303,19 @@ void BgfxWindow::mousePressEvent(QMouseEvent* event)
 {
     QWidget::mousePressEvent(event);
 
+    const QPoint pos = event->position().toPoint();
+
     if (event->button() == Qt::LeftButton)
     {
-        m_leftDragging = true;
-        m_lastMousePos = event->position().toPoint();
+        m_leftDragging  = true;
+        m_lastMousePos  = pos;
         setCursor(Qt::ClosedHandCursor);
+    }
+    else if (event->button() == Qt::RightButton)
+    {
+        m_rightDragging = true;
+        m_lastMousePos  = pos;
+        setCursor(Qt::SizeAllCursor);
     }
 }
 
@@ -315,20 +323,50 @@ void BgfxWindow::mouseMoveEvent(QMouseEvent* event)
 {
     QWidget::mouseMoveEvent(event);
 
-    if (!m_leftDragging)
+    if (!m_leftDragging && !m_rightDragging)
         return;
 
     const QPoint pos   = event->position().toPoint();
     const QPoint delta = pos - m_lastMousePos;
     m_lastMousePos = pos;
 
-    // Horizontal drag -> yaw, vertical drag -> pitch.
-    m_cameraYaw   += float(delta.x()) * 0.005f;
-    m_cameraPitch += float(delta.y()) * 0.005f;
+    if (m_leftDragging)
+    {
+        // Horizontal drag -> yaw, vertical drag -> pitch.
+        m_cameraYaw   += float(delta.x()) * 0.005f;
+        m_cameraPitch += float(delta.y()) * 0.005f;
 
-    // Clamp pitch so the camera cannot flip over the poles.
-    const float pitchLimit = bx::kPi * 0.49f;
-    m_cameraPitch = bx::clamp(m_cameraPitch, -pitchLimit, pitchLimit);
+        // Clamp pitch so the camera cannot flip over the poles.
+        const float pitchLimit = bx::kPi * 0.49f;
+        m_cameraPitch = bx::clamp(m_cameraPitch, -pitchLimit, pitchLimit);
+    }
+
+    if (m_rightDragging)
+    {
+        // Camera basis vectors derived from the current yaw/pitch.
+        const float cy = bx::cos(m_cameraYaw);
+        const float sy = bx::sin(m_cameraYaw);
+        const float cp = bx::cos(m_cameraPitch);
+        const float sp = bx::sin(m_cameraPitch);
+
+        const bx::Vec3 forward = {-sy * cp, -sp, cy * cp};
+        const bx::Vec3 worldUp = {0.0f, 1.0f, 0.0f};
+        bx::Vec3 right = bx::cross(forward, worldUp);
+        right = bx::normalize(right);
+        bx::Vec3 up = bx::cross(right, forward);
+
+        // Pan scale grows with distance so panning feels consistent at any zoom.
+        const float scale = m_cameraDistance * 0.0015f;
+
+        // Qt screen Y points down, so a negative delta.y (dragging up) must
+        // move the target down (camera down) so the model follows the cursor.
+        const float panX = float(delta.x());
+        const float panY = float(delta.y());
+
+        m_target.x += right.x * panX * scale + up.x * panY * scale;
+        m_target.y += right.y * panX * scale + up.y * panY * scale;
+        m_target.z += right.z * panX * scale + up.z * panY * scale;
+    }
 }
 
 void BgfxWindow::mouseReleaseEvent(QMouseEvent* event)
@@ -338,8 +376,14 @@ void BgfxWindow::mouseReleaseEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton)
     {
         m_leftDragging = false;
-        setCursor(Qt::ArrowCursor);
     }
+    else if (event->button() == Qt::RightButton)
+    {
+        m_rightDragging = false;
+    }
+
+    if (!m_leftDragging && !m_rightDragging)
+        setCursor(Qt::ArrowCursor);
 }
 
 void BgfxWindow::wheelEvent(QWheelEvent* event)
