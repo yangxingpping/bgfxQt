@@ -366,6 +366,90 @@ void BgfxWindow::drawAxis3D()
 }
 
 
+void BgfxWindow::drawLight()
+{
+    // Build the light gizmo once: a small UV sphere rendered with an emissive
+    // daylight color (~6500K warm white) so it reads as a glowing light bulb.
+    if (!m_lightBuilt)
+    {
+        struct LightVertex
+        {
+            float    x, y, z;
+            uint32_t abgr;
+        };
+
+        std::vector<LightVertex> verts;
+        std::vector<uint16_t>    indices;
+
+        // Daylight color (R=255, G=250, B=235, A=255).
+        const uint32_t col =
+            (uint32_t(255) << 24) |
+            (uint32_t(235) << 16) |
+            (uint32_t(250) << 8)  |
+             uint32_t(255);
+
+        const float radius  = 0.5f;
+        const int   stacks  = 12;
+        const int   slices  = 16;
+
+        // Vertices: (stacks+1) rings of (slices+1) vertices each.
+        for (int i = 0; i <= stacks; ++i)
+        {
+            const float phi = bx::kPi * float(i) / float(stacks); // 0..pi
+            const float y   = radius * bx::cos(phi);
+            const float r   = radius * bx::sin(phi);
+            for (int j = 0; j <= slices; ++j)
+            {
+                const float theta = 2.0f * bx::kPi * float(j) / float(slices);
+                verts.push_back({ r * bx::cos(theta), y, r * bx::sin(theta), col });
+            }
+        }
+
+        // Indices: two triangles per quad.
+        for (int i = 0; i < stacks; ++i)
+        {
+            for (int j = 0; j < slices; ++j)
+            {
+                const uint16_t a = uint16_t(i * (slices + 1) + j);
+                const uint16_t b = uint16_t(a + slices + 1);
+                indices.insert(indices.end(), {
+                    a, b, uint16_t(a + 1),
+                    uint16_t(a + 1), b, uint16_t(b + 1)
+                });
+            }
+        }
+
+        m_lightLayout
+            .begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
+            .end();
+
+        m_lightVbh = bgfx::createVertexBuffer(
+            bgfx::copy(verts.data(), uint32_t(verts.size() * sizeof(LightVertex))),
+            m_lightLayout
+        );
+
+        m_lightIbh = bgfx::createIndexBuffer(
+            bgfx::copy(indices.data(), uint32_t(indices.size() * sizeof(uint16_t)))
+        );
+
+        m_lightIndexCount = uint32_t(indices.size());
+        m_lightBuilt = true;
+    }
+
+    // Place the light sphere at the daylight point-light position (50,50,50).
+    float model[16];
+    bx::mtxTranslate(model, m_lightPos.x, m_lightPos.y, m_lightPos.z);
+
+    bgfx::setTransform(model);
+    bgfx::setVertexBuffer(0, m_lightVbh);
+    bgfx::setIndexBuffer(m_lightIbh, 0, m_lightIndexCount);
+    bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
+    bgfx::submit(0, m_program);
+}
+
+
 void BgfxWindow::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
@@ -565,6 +649,7 @@ void BgfxWindow::renderFrame()
 
     drawModel();
     drawAxis3D();
+    drawLight();
 
     // Render the navigation cube overlay in the top-left corner (view 1).
     m_navCube.render(1, m_cameraYaw, m_cameraPitch,
@@ -774,6 +859,12 @@ void BgfxWindow::shutdownBgfx()
     m_axisVbh = BGFX_INVALID_HANDLE;
     m_axisIbh = BGFX_INVALID_HANDLE;
     m_axisBuilt = false;
+
+    if (bgfx::isValid(m_lightVbh)) bgfx::destroy(m_lightVbh);
+    if (bgfx::isValid(m_lightIbh)) bgfx::destroy(m_lightIbh);
+    m_lightVbh = BGFX_INVALID_HANDLE;
+    m_lightIbh = BGFX_INVALID_HANDLE;
+    m_lightBuilt = false;
 
     bgfx::shutdown();
 

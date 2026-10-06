@@ -42,6 +42,7 @@ private:
     QSize physicalSize() const;
 	void drawModel();
     void drawAxis3D();
+    void drawLight();
 private:
     bool m_bgfxInitialized = false;
     bool m_cubeInitialized = false;
@@ -68,6 +69,14 @@ private:
     bgfx::IndexBufferHandle  m_axisIbh = BGFX_INVALID_HANDLE;
     uint32_t                 m_axisIndexCount = 0;
     bool                     m_axisBuilt = false;
+
+    // Daylight point-light gizmo (small emissive sphere at m_lightPos).
+    bgfx::VertexLayout       m_lightLayout;
+    bgfx::VertexBufferHandle m_lightVbh = BGFX_INVALID_HANDLE;
+    bgfx::IndexBufferHandle  m_lightIbh = BGFX_INVALID_HANDLE;
+    uint32_t                 m_lightIndexCount = 0;
+    bool                     m_lightBuilt = false;
+    bx::Vec3                 m_lightPos = {50.0f, 50.0f, 50.0f};
 
     // Orbit camera
     bool  m_leftDragging   = false;
