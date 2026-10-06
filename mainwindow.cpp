@@ -17,7 +17,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::onPushButtonClicked()
 {
-	auto* window = new BgfxWindow();
+	auto* window = new BgfxWindow(nullptr);
 
 	window->setAttribute(Qt::WA_DeleteOnClose);
 
