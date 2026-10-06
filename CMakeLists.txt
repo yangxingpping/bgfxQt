@@ -14,6 +14,7 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(Qt6 REQUIRED COMPONENTS OpenGLWidgets)
 find_package(bgfx CONFIG REQUIRED)
 find_package(manifold CONFIG REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
 
 set(PROJECT_SOURCES
         main.cpp
@@ -24,6 +25,8 @@ set(PROJECT_SOURCES
         BgfxWindow.cpp
         NavigationCube.h
         NavigationCube.cpp
+        MachineCut.h
+        MachineCut.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -49,7 +52,7 @@ else()
     endif()
 endif()
 
-target_link_libraries(bgfxQt PRIVATE Qt6::OpenGLWidgets PRIVATE Qt${QT_VERSION_MAJOR}::Widgets PRIVATE bgfx::bx bgfx::bgfx bgfx::bimg bgfx::bimg_decode PRIVATE manifold::manifold)
+target_link_libraries(bgfxQt PRIVATE Qt6::OpenGLWidgets PRIVATE Qt${QT_VERSION_MAJOR}::Widgets PRIVATE bgfx::bx bgfx::bgfx bgfx::bimg bgfx::bimg_decode PRIVATE manifold::manifold PRIVATE spdlog::spdlog)
 
 # --- bgfx shaders (shaderc) -------------------------------------------------
 # Derive the vcpkg/install prefix from the resolved bgfx config location so
