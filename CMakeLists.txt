@@ -48,6 +48,69 @@ endif()
 
 target_link_libraries(bgfxQt PRIVATE Qt6::OpenGLWidgets PRIVATE Qt${QT_VERSION_MAJOR}::Widgets PRIVATE bgfx::bx bgfx::bgfx bgfx::bimg bgfx::bimg_decode)
 
+# --- bgfx shaders (shaderc) -------------------------------------------------
+# Derive the vcpkg/install prefix from the resolved bgfx config location so
+# shaderc and the shader include headers (bgfx_shader.sh) match the bgfx
+# runtime exactly. Both can be overridden via -DBGFX_SHADERC / -DBGFX_SHADER_INCLUDE_DIR.
+get_filename_component(_bgfx_share_dir "${bgfx_DIR}" DIRECTORY)
+get_filename_component(_bgfx_prefix "${_bgfx_share_dir}" DIRECTORY)
+
+set(BGFX_SHADERC "${_bgfx_prefix}/tools/bgfx/shaderc${CMAKE_EXECUTABLE_SUFFIX}"
+    CACHE FILEPATH "Path to bgfx shaderc tool")
+set(BGFX_SHADER_INCLUDE_DIR "${_bgfx_prefix}/include/bgfx"
+    CACHE PATH "Directory containing bgfx_shader.sh")
+
+if(NOT EXISTS "${BGFX_SHADERC}")
+    message(FATAL_ERROR "shaderc not found: ${BGFX_SHADERC}. Install bgfx tools (vcpkg install bgfx[tools]) or set BGFX_SHADERC.")
+endif()
+
+set(_shader_gen_dir "${CMAKE_BINARY_DIR}/generated/shaders")
+
+function(bgfx_compile_shader outvar src stage platform profile array_name)
+    set(out "${_shader_gen_dir}/${array_name}.bin.h")
+    add_custom_command(
+        OUTPUT "${out}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_shader_gen_dir}"
+        COMMAND "${BGFX_SHADERC}"
+                -f "${src}"
+                -o "${out}"
+                --bin2c ${array_name}
+                --platform ${platform}
+                -p ${profile}
+                --type ${stage}
+                -i "${BGFX_SHADER_INCLUDE_DIR}"
+        DEPENDS "${src}" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/varying.def.sc"
+        COMMENT "Compiling bgfx shader ${array_name}"
+        VERBATIM
+    )
+    set(${outvar} "${out}" PARENT_SCOPE)
+endfunction()
+
+set(_shader_headers "")
+foreach(_stage vs fs)
+    if(_stage STREQUAL "vs")
+        set(_type vertex)
+    else()
+        set(_type fragment)
+    endif()
+
+    # Direct3D 11 / 12 share the same s_5_0 bytecode.
+    bgfx_compile_shader(_h
+        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${_stage}_cube.sc"
+        ${_type} windows s_5_0 "${_stage}_cube_dx11")
+    list(APPEND _shader_headers "${_h}")
+
+    # Vulkan (SPIR-V).
+    bgfx_compile_shader(_h
+        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${_stage}_cube.sc"
+        ${_type} linux spirv "${_stage}_cube_vk")
+    list(APPEND _shader_headers "${_h}")
+endforeach()
+
+add_custom_target(bgfx_shaders ALL DEPENDS ${_shader_headers})
+add_dependencies(bgfxQt bgfx_shaders)
+target_include_directories(bgfxQt PRIVATE "${_shader_gen_dir}")
+
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
