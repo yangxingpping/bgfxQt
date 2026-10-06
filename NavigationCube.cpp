@@ -211,12 +211,15 @@ void NavigationCube::render(uint8_t view,
 
     bgfx::setViewTransform(view, viewMtx, projMtx);
 
-    // Orient the cube with the inverse of the camera orbit: model = Rx(-pitch) * Ry(-yaw).
+    // Orient the cube so it shows the same view of the world axes as the main
+    // camera.  The scene camera orbits with eye = {sin(yaw)cos(pitch),
+    // sin(pitch), -cos(yaw)cos(pitch)}; applying Ry(-yaw) * Rx(+pitch) to the
+    // cube reproduces that orientation (verified at the yaw/pitch poles).
     float ry[16];
     float rx[16];
     float model[16];
     bx::mtxRotateY(ry, -yaw);
-    bx::mtxRotateX(rx, -pitch);
+    bx::mtxRotateX(rx,  pitch);
     bx::mtxMul(model, rx, ry);
 
     bgfx::setTransform(model);
@@ -245,12 +248,13 @@ bool NavigationCube::hitTest(int mouseX, int mouseY,
     const bx::Vec3 rayOrigin = {nx * kOrthoHalf, ny * kOrthoHalf, -kCamDist};
     const bx::Vec3 rayDir    = {0.0f, 0.0f, 1.0f};
 
-    // Inverse cube rotation: R^-1 = Ry(yaw) * Rx(pitch).
+    // Inverse cube rotation: model = Rx(+pitch) * Ry(-yaw), so
+    // R^-1 = Ry(+yaw) * Rx(-pitch).
     float rxi[16];
     float ryi[16];
     float invRot[16];
-    bx::mtxRotateX(rxi, m_pitch);
-    bx::mtxRotateY(ryi, m_yaw);
+    bx::mtxRotateX(rxi, -m_pitch);
+    bx::mtxRotateY(ryi,  m_yaw);
     bx::mtxMul(invRot, ryi, rxi);
 
     auto transformDir = [&](const bx::Vec3& v) -> bx::Vec3
