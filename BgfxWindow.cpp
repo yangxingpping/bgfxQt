@@ -351,9 +351,11 @@ void BgfxWindow::drawAxis3D()
         m_axisBuilt = true;
     }
 
-    // Place the gizmo at the orbit center so it follows panning.
+    // Draw the axes at the world origin, same as the model. Because the orbit
+    // camera looks at m_target (which moves during panning), both the model and
+    // the axes slide together on screen when the user right-drags.
     float model[16];
-    bx::mtxTranslate(model, m_target.x, m_target.y, m_target.z);
+    bx::mtxIdentity(model);
 
     bgfx::setTransform(model);
     bgfx::setVertexBuffer(0, m_axisVbh);
