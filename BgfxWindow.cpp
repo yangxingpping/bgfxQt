@@ -3,6 +3,8 @@
 #include <QShowEvent>
 #include <QResizeEvent>
 #include <QCloseEvent>
+#include <QMouseEvent>
+#include <QWheelEvent>
 #include <QTimer>
 
 #include <bgfx/bgfx.h>
@@ -253,9 +255,16 @@ void BgfxWindow::renderFrame()
         double(bx::getHPCounter() - m_timeOffset) / double(bx::getHPFrequency())
     );
 
-    // Camera: bgfx is right-handed with the camera looking towards +Z.
-    const bx::Vec3 at  = {0.0f, 0.0f,  0.0f};
-    const bx::Vec3 eye = {0.0f, 0.0f, -5.0f};
+    // Orbit camera: rotate around the target (origin).
+    // bgfx is right-handed with the camera looking towards +Z, so at yaw=0
+    // the camera sits on the negative Z axis.
+    const bx::Vec3 at = {0.0f, 0.0f, 0.0f};
+    const bx::Vec3 eye =
+    {
+        m_cameraDistance * bx::sin(m_cameraYaw)   * bx::cos(m_cameraPitch),
+        m_cameraDistance * bx::sin(m_cameraPitch),
+        -m_cameraDistance * bx::cos(m_cameraYaw)  * bx::cos(m_cameraPitch)
+    };
 
     float view[16];
     bx::mtxLookAt(view, eye, at);
@@ -288,6 +297,58 @@ void BgfxWindow::renderFrame()
     }
 
     bgfx::frame();
+}
+
+void BgfxWindow::mousePressEvent(QMouseEvent* event)
+{
+    QWidget::mousePressEvent(event);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        m_leftDragging = true;
+        m_lastMousePos = event->position().toPoint();
+        setCursor(Qt::ClosedHandCursor);
+    }
+}
+
+void BgfxWindow::mouseMoveEvent(QMouseEvent* event)
+{
+    QWidget::mouseMoveEvent(event);
+
+    if (!m_leftDragging)
+        return;
+
+    const QPoint pos   = event->position().toPoint();
+    const QPoint delta = pos - m_lastMousePos;
+    m_lastMousePos = pos;
+
+    // Horizontal drag -> yaw, vertical drag -> pitch.
+    m_cameraYaw   += float(delta.x()) * 0.005f;
+    m_cameraPitch += float(delta.y()) * 0.005f;
+
+    // Clamp pitch so the camera cannot flip over the poles.
+    const float pitchLimit = bx::kPi * 0.49f;
+    m_cameraPitch = bx::clamp(m_cameraPitch, -pitchLimit, pitchLimit);
+}
+
+void BgfxWindow::mouseReleaseEvent(QMouseEvent* event)
+{
+    QWidget::mouseReleaseEvent(event);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        m_leftDragging = false;
+        setCursor(Qt::ArrowCursor);
+    }
+}
+
+void BgfxWindow::wheelEvent(QWheelEvent* event)
+{
+    QWidget::wheelEvent(event);
+
+    // angleDelta is in eighths of a degree; a typical notch is 120.
+    const float step = float(event->angleDelta().y()) / 120.0f * 0.5f;
+    m_cameraDistance = bx::clamp(m_cameraDistance - step, 1.5f, 50.0f);
 }
 
 void BgfxWindow::closeEvent(QCloseEvent* event)
