@@ -2,44 +2,19 @@
 
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
+#include <manifold/manifold.h>
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace
 {
 
-// Per-vertex colored cube (8 vertices, 12 triangles). The colors make each
-// face visually distinct so the orientation is easy to read.
-struct NavVertex
-{
-    float    x;
-    float    y;
-    float    z;
-    uint32_t abgr; // RGBA8, little-endian byte order R, G, B, A
-};
-
-static const NavVertex kVertices[] =
-{
-    {-1.0f,  1.0f,  1.0f, 0xff000000}, // 0
-    { 1.0f,  1.0f,  1.0f, 0xff0000ff}, // 1  +X red
-    {-1.0f, -1.0f,  1.0f, 0xff00ff00}, // 2
-    { 1.0f, -1.0f,  1.0f, 0xff00ffff}, // 3
-    {-1.0f,  1.0f, -1.0f, 0xffff0000}, // 4  +Z blue
-    { 1.0f,  1.0f, -1.0f, 0xffff00ff}, // 5
-    {-1.0f, -1.0f, -1.0f, 0xffffff00}, // 6  +Y yellow
-    { 1.0f, -1.0f, -1.0f, 0xffffffff}, // 7
-};
-
-static const uint16_t kIndices[] =
-{
-    0, 1, 2,  1, 3, 2,  // +Z (front)
-    4, 6, 5,  5, 6, 7,  // -Z (back)
-    0, 2, 4,  4, 2, 6,  // -X (left)
-    1, 5, 3,  5, 7, 3,  // +X (right)
-    0, 4, 1,  4, 5, 1,  // +Y (top)
-    2, 3, 6,  6, 3, 7,  // -Y (bottom)
-};
+// Chamfer depth as a fraction of the half-edge. The cube spans [-1, 1]; each
+// corner is cut by the plane sx*x + sy*y + sz*z = 3 - kChamfer, producing flat
+// 45-degree bevels on all edges and corners.
+constexpr float kChamfer = 0.18f;
 
 // Orthographic half-extent (cube is [-1,1], so [-2,2] leaves a margin).
 constexpr float kOrthoHalf = 2.0f;
@@ -62,6 +37,107 @@ void NavigationCube::init(bgfx::ProgramHandle program)
 
     m_program = program;
 
+    // Build a chamfered cube: start from a unit cube [-1, 1]^3 and trim each
+    // of the 8 corners with a plane. The result keeps the face centers at ±1
+    // (so the bounding box is exactly [-1, 1] and hit-testing stays exact)
+    // while adding flat bevels to every edge and corner.
+    manifold::Manifold mesh = manifold::Manifold::Cube({2.0, 2.0, 2.0}, true);
+    // TrimByPlane keeps normal·p >= originOffset.  The corner plane for the
+    // (sx,sy,sz) corner is sx*x+sy*y+sz*z = 3-d; we keep the side <= 3-d, so
+    // pass the inward unit normal and the negated signed distance offset.
+    const double kInvSqrt3 = 1.0 / std::sqrt(3.0);
+    const double planeOffset = -(3.0 - double(kChamfer)) * kInvSqrt3;
+    for (int sx = -1; sx <= 1; sx += 2)
+        for (int sy = -1; sy <= 1; sy += 2)
+            for (int sz = -1; sz <= 1; sz += 2)
+            {
+                mesh = mesh.TrimByPlane(
+                    manifold::vec3(
+                        double(-sx) * kInvSqrt3,
+                        double(-sy) * kInvSqrt3,
+                        double(-sz) * kInvSqrt3
+                    ),
+                    planeOffset
+                );
+            }
+
+    const manifold::MeshGL gl = mesh.GetMeshGL();
+    const uint32_t numVert = uint32_t(gl.NumVert());
+    const uint32_t numTri  = uint32_t(gl.NumTri());
+
+    if (numVert == 0 || numTri == 0)
+        return;
+
+    // Compute per-vertex normals for a shaded color (normal * 0.5 + 0.5).
+    std::vector<bx::Vec3> normals(numVert, {0.0f, 0.0f, 0.0f});
+    for (uint32_t t = 0; t < numTri; ++t)
+    {
+        const uint32_t i0 = gl.triVerts[t * 3 + 0];
+        const uint32_t i1 = gl.triVerts[t * 3 + 1];
+        const uint32_t i2 = gl.triVerts[t * 3 + 2];
+
+        const float* p0 = &gl.vertProperties[i0 * gl.numProp];
+        const float* p1 = &gl.vertProperties[i1 * gl.numProp];
+        const float* p2 = &gl.vertProperties[i2 * gl.numProp];
+
+        const bx::Vec3 e1 = {p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]};
+        const bx::Vec3 e2 = {p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]};
+        bx::Vec3 n = bx::cross(e1, e2);
+        const float len2 = n.x * n.x + n.y * n.y + n.z * n.z;
+        if (len2 > 1e-12f)
+        {
+            const float inv = 1.0f / bx::sqrt(len2);
+            n = {n.x * inv, n.y * inv, n.z * inv};
+        }
+        else
+        {
+            n = {0.0f, 1.0f, 0.0f};
+        }
+        normals[i0] = bx::add(normals[i0], n);
+        normals[i1] = bx::add(normals[i1], n);
+        normals[i2] = bx::add(normals[i2], n);
+    }
+    for (uint32_t i = 0; i < numVert; ++i)
+    {
+        bx::Vec3& n = normals[i];
+        const float len2 = n.x * n.x + n.y * n.y + n.z * n.z;
+        if (len2 > 1e-12f)
+        {
+            const float inv = 1.0f / bx::sqrt(len2);
+            n = {n.x * inv, n.y * inv, n.z * inv};
+        }
+        else
+        {
+            n = {0.0f, 1.0f, 0.0f};
+        }
+    }
+
+    struct Vertex
+    {
+        float    x, y, z;
+        uint32_t abgr;
+    };
+
+    std::vector<Vertex> vertices(numVert);
+    for (uint32_t i = 0; i < numVert; ++i)
+    {
+        const float* p = &gl.vertProperties[i * gl.numProp];
+        const bx::Vec3& n = normals[i];
+
+        const uint8_t r = uint8_t(bx::clamp(n.x * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+        const uint8_t g = uint8_t(bx::clamp(n.y * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+        const uint8_t b = uint8_t(bx::clamp(n.z * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+
+        vertices[i].x = p[0];
+        vertices[i].y = p[1];
+        vertices[i].z = p[2];
+        vertices[i].abgr =
+            (uint32_t(255) << 24) |
+            (uint32_t(b)   << 16) |
+            (uint32_t(g)   << 8)  |
+             uint32_t(r);
+    }
+
     m_layout
         .begin()
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
@@ -69,14 +145,16 @@ void NavigationCube::init(bgfx::ProgramHandle program)
         .end();
 
     m_vbh = bgfx::createVertexBuffer(
-        bgfx::makeRef(kVertices, sizeof(kVertices)),
+        bgfx::copy(vertices.data(), uint32_t(vertices.size() * sizeof(Vertex))),
         m_layout
     );
 
     m_ibh = bgfx::createIndexBuffer(
-        bgfx::makeRef(kIndices, sizeof(kIndices))
+        bgfx::copy(gl.triVerts.data(), uint32_t(gl.triVerts.size() * sizeof(uint32_t))),
+        BGFX_BUFFER_INDEX32
     );
 
+    m_indexCount = numTri * 3;
     m_initialized = true;
 }
 
@@ -99,26 +177,22 @@ void NavigationCube::render(uint8_t view,
                             uint16_t frameWidth,
                             uint16_t frameHeight)
 {
+    (void)frameWidth;
+    (void)frameHeight;
     if (!m_initialized)
         return;
 
-    // Cache orientation for hit testing.
     m_yaw   = yaw;
     m_pitch = pitch;
 
-    // Place the cube in the top-left corner.
     const uint16_t vpX = kMargin;
     const uint16_t vpY = kMargin;
     const uint16_t vpW = kSize;
     const uint16_t vpH = kSize;
 
     bgfx::setViewRect(view, vpX, vpY, vpW, vpH);
-
-    // Clear only the depth buffer in this viewport so the cube composites
-    // over the main scene's color output.
     bgfx::setViewClear(view, BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
 
-    // Orthographic camera looking at the cube from -Z.
     const bx::Vec3 at  = {0.0f, 0.0f, 0.0f};
     const bx::Vec3 eye = {0.0f, 0.0f, -kCamDist};
 
@@ -137,8 +211,7 @@ void NavigationCube::render(uint8_t view,
 
     bgfx::setViewTransform(view, viewMtx, projMtx);
 
-    // Orient the cube with the inverse of the camera orbit so it reflects
-    // the current viewing direction: model = Rx(-pitch) * Ry(-yaw).
+    // Orient the cube with the inverse of the camera orbit: model = Rx(-pitch) * Ry(-yaw).
     float ry[16];
     float rx[16];
     float model[16];
@@ -148,8 +221,7 @@ void NavigationCube::render(uint8_t view,
 
     bgfx::setTransform(model);
     bgfx::setVertexBuffer(0, m_vbh);
-    bgfx::setIndexBuffer(m_ibh);
-    // Depth test on, RGB write on, no face culling.
+    bgfx::setIndexBuffer(m_ibh, 0, m_indexCount);
     bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
     bgfx::submit(view, m_program);
 }
@@ -161,31 +233,26 @@ bool NavigationCube::hitTest(int mouseX, int mouseY,
     if (!m_initialized)
         return false;
 
-    // Is the click inside the nav cube viewport?
     if (mouseX < int(kMargin) || mouseY < int(kMargin) ||
         mouseX >= int(kMargin + kSize) || mouseY >= int(kMargin + kSize))
         return false;
 
-    // Convert click to orthographic view-space coordinates.
     const float lx = float(mouseX - int(kMargin));
     const float ly = float(mouseY - int(kMargin));
-    const float nx = (lx / float(kSize)) * 2.0f - 1.0f; // [-1, 1]
-    const float ny = 1.0f - (ly / float(kSize)) * 2.0f; // flip Y
+    const float nx = (lx / float(kSize)) * 2.0f - 1.0f;
+    const float ny = 1.0f - (ly / float(kSize)) * 2.0f;
 
-    // Orthographic ray in view space: origin on the near plane, dir +Z.
     const bx::Vec3 rayOrigin = {nx * kOrthoHalf, ny * kOrthoHalf, -kCamDist};
     const bx::Vec3 rayDir    = {0.0f, 0.0f, 1.0f};
 
-    // Transform the ray into cube-local space using the inverse of the cube
-    // rotation. R = Rx(-pitch) * Ry(-yaw), so R^-1 = Ry(yaw) * Rx(pitch).
+    // Inverse cube rotation: R^-1 = Ry(yaw) * Rx(pitch).
     float rxi[16];
     float ryi[16];
     float invRot[16];
     bx::mtxRotateX(rxi, m_pitch);
     bx::mtxRotateY(ryi, m_yaw);
-    bx::mtxMul(invRot, ryi, rxi); // Ry(yaw) * Rx(pitch)
+    bx::mtxMul(invRot, ryi, rxi);
 
-    // Transform direction (no translation) and origin (with translation=0).
     auto transformDir = [&](const bx::Vec3& v) -> bx::Vec3
     {
         return {
@@ -206,7 +273,6 @@ bool NavigationCube::hitTest(int mouseX, int mouseY,
     const bx::Vec3 localOrigin = transformPoint(rayOrigin);
     const bx::Vec3 localDir    = bx::normalize(transformDir(rayDir));
 
-    // Slab intersection against the unit cube [-1, 1]^3.
     const float minB[3] = {-1.0f, -1.0f, -1.0f};
     const float maxB[3] = { 1.0f,  1.0f,  1.0f};
     const float o[3]    = {localOrigin.x, localOrigin.y, localOrigin.z};
@@ -229,7 +295,7 @@ bool NavigationCube::hitTest(int mouseX, int mouseY,
             const float inv = 1.0f / d[axis];
             float t1 = (minB[axis] - o[axis]) * inv;
             float t2 = (maxB[axis] - o[axis]) * inv;
-            int sign = (d[axis] < 0.0f) ? 1 : -1; // which face normal we hit
+            int sign = (d[axis] < 0.0f) ? 1 : -1;
 
             if (t1 > t2) { std::swap(t1, t2); sign = -sign; }
 
@@ -244,10 +310,6 @@ bool NavigationCube::hitTest(int mouseX, int mouseY,
     if (tmin < 0.0f)
         return false;
 
-    // Map (axis, sign) to face index:
-    //   axis 0 (X): sign -1 -> +X face (0), sign +1 -> -X face (1)
-    //   axis 1 (Y): sign -1 -> +Y face (2), sign +1 -> -Y face (3)
-    //   axis 2 (Z): sign -1 -> +Z face (4), sign +1 -> -Z face (5)
     outFace = hitAxis * 2 + (hitSign > 0 ? 1 : 0);
     return true;
 }

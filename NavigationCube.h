@@ -52,6 +52,7 @@ private:
     bgfx::IndexBufferHandle  m_ibh     = BGFX_INVALID_HANDLE;
     bgfx::VertexLayout       m_layout;
     bgfx::ProgramHandle      m_program = BGFX_INVALID_HANDLE;
+    uint32_t                 m_indexCount = 0;
     bool                     m_initialized = false;
 
     // Cached orientation for hit testing (matches the last render call).
