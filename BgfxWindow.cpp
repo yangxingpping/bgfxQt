@@ -653,8 +653,7 @@ void BgfxWindow::renderFrame()
     drawLight();
 
     // Render the navigation cube overlay in the top-left corner (view 1).
-    m_navCube.render(1, m_cameraYaw, m_cameraPitch,
-                     uint16_t(fbSize.width()), uint16_t(fbSize.height()));
+    //m_navCube.render(1, m_cameraYaw, m_cameraPitch, uint16_t(fbSize.width()), uint16_t(fbSize.height()));
 
     bgfx::frame();
 }
