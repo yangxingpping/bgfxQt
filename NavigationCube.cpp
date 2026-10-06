@@ -475,14 +475,17 @@ void NavigationCube::render(uint8_t view,
 
     // Orient the cube so it shows the same view of the world axes as the main
     // camera.  The scene camera orbits with eye = {sin(yaw)cos(pitch),
-    // sin(pitch), -cos(yaw)cos(pitch)}; applying Ry(-yaw) * Rx(+pitch) to the
-    // cube reproduces that orientation (verified at the yaw/pitch poles).
+    // sin(pitch), -cos(yaw)cos(pitch)} = Ry(-yaw) * Rx(pitch) * (0,0,-1),
+    // i.e. pitch is applied *inside* the yaw rotation so the pitch axis
+    // rotates with yaw.  Applying the same order (Ry(-yaw) * Rx(pitch)) to
+    // the cube keeps the cube's pitch axis aligned with the scene's apparent
+    // pitch axis at every yaw, so vertical dragging never flips direction.
     float ry[16];
     float rx[16];
     float model[16];
     bx::mtxRotateY(ry, -yaw);
     bx::mtxRotateX(rx,  pitch);
-    bx::mtxMul(model, rx, ry);
+    bx::mtxMul(model, ry, rx);
 
     // 1) Solid chamfered cube (single color).
     bgfx::setTransform(model);
@@ -532,14 +535,14 @@ bool NavigationCube::hitTest(int mouseX, int mouseY,
     const bx::Vec3 rayOrigin = {nx * kOrthoHalf, ny * kOrthoHalf, -kCamDist};
     const bx::Vec3 rayDir    = {0.0f, 0.0f, 1.0f};
 
-    // Inverse cube rotation: model = Rx(+pitch) * Ry(-yaw), so
-    // R^-1 = Ry(+yaw) * Rx(-pitch).
+    // Inverse cube rotation: model = Ry(-yaw) * Rx(+pitch), so
+    // R^-1 = Rx(-pitch) * Ry(+yaw).
     float rxi[16];
     float ryi[16];
     float invRot[16];
     bx::mtxRotateX(rxi, -m_pitch);
     bx::mtxRotateY(ryi,  m_yaw);
-    bx::mtxMul(invRot, ryi, rxi);
+    bx::mtxMul(invRot, rxi, ryi);
 
     auto transformDir = [&](const bx::Vec3& v) -> bx::Vec3
     {
