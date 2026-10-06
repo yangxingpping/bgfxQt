@@ -51,8 +51,6 @@ private:
     bgfx::ShaderHandle m_fragmentShader = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle m_program = BGFX_INVALID_HANDLE;
 
-    int64_t m_timeOffset = 0;
-
     // Orbit camera
     bool  m_leftDragging   = false;
     bool  m_rightDragging  = false;

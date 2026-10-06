@@ -10,7 +10,6 @@
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
 #include <bx/math.h>
-#include <bx/timer.h>
 
 #include "vs_cube_dx11.bin.h"
 #include "fs_cube_dx11.bin.h"
@@ -127,8 +126,6 @@ bool BgfxWindow::initBgfx()
 
     if (!initCube())
         return false;
-
-    m_timeOffset = bx::getHPCounter();
 
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, &BgfxWindow::renderFrame);
@@ -251,10 +248,6 @@ void BgfxWindow::renderFrame()
         uint16_t(fbSize.height())
     );
 
-    const float time = float(
-        double(bx::getHPCounter() - m_timeOffset) / double(bx::getHPFrequency())
-    );
-
     // Orbit camera: rotate around m_target (which is moved by right-drag panning).
     // bgfx is right-handed with the camera looking towards +Z, so at yaw=0
     // the camera sits on the negative Z axis relative to the target.
@@ -286,7 +279,7 @@ void BgfxWindow::renderFrame()
     if (m_cubeInitialized)
     {
         float model[16];
-        bx::mtxRotateXY(model, time, time * 0.37f);
+        bx::mtxIdentity(model);
 
         bgfx::setTransform(model);
         bgfx::setVertexBuffer(0, m_vbh);
