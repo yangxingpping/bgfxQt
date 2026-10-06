@@ -11,6 +11,9 @@
 #include <bgfx/platform.h>
 #include <bx/math.h>
 
+#include <vector>
+#include <cstdio>
+
 #include "vs_cube_dx11.bin.h"
 #include "fs_cube_dx11.bin.h"
 #include "vs_cube_vk.bin.h"
@@ -85,6 +88,164 @@ QSize BgfxWindow::physicalSize() const
     );
 }
 
+
+void BgfxWindow::drawModel()
+{
+    {
+        static int callCount = 0;
+        if (callCount < 3)
+        {
+            FILE* f = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
+            if (f)
+            {
+                fprintf(f, "drawModel call#%d isEmpty=%d numVert=%zu numTri=%zu\n",
+                        callCount, int(m_manifold.IsEmpty()),
+                        m_manifold.NumVert(), m_manifold.NumTri());
+                fclose(f);
+            }
+            callCount++;
+        }
+    }
+
+    if (m_manifold.IsEmpty())
+        return;
+
+    // Upload the manifold mesh to GPU buffers once (lazy).
+    if (!m_modelBuilt)
+    {
+        FILE* f = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
+        if (f) fprintf(f, "  step: get mesh\n");
+        const manifold::MeshGL mesh = m_manifold.GetMeshGL();
+        const uint32_t numVert = uint32_t(mesh.NumVert());
+        const uint32_t numTri  = uint32_t(mesh.NumTri());
+        if (f) fprintf(f, "  mesh sizes: vertProps=%zu numProp=%u triVerts=%zu numVert=%u numTri=%u\n",
+                       mesh.vertProperties.size(), mesh.numProp, mesh.triVerts.size(), numVert, numTri);
+
+        if (numVert == 0 || numTri == 0)
+        {
+            if (f) { fprintf(f, "  empty mesh, return\n"); fclose(f); }
+            return;
+        }
+        if (f) fprintf(f, "  step: numProp=%u numVert=%u numTri=%u\n", mesh.numProp, numVert, numTri);
+
+        // Compute per-vertex normals by averaging face normals.
+        std::vector<bx::Vec3> normals(numVert, {0.0f, 0.0f, 0.0f});
+        for (uint32_t t = 0; t < numTri; ++t)
+        {
+            const uint32_t i0 = mesh.triVerts[t * 3 + 0];
+            const uint32_t i1 = mesh.triVerts[t * 3 + 1];
+            const uint32_t i2 = mesh.triVerts[t * 3 + 2];
+
+            const float* p0 = &mesh.vertProperties[i0 * mesh.numProp];
+            const float* p1 = &mesh.vertProperties[i1 * mesh.numProp];
+            const float* p2 = &mesh.vertProperties[i2 * mesh.numProp];
+
+            const bx::Vec3 e1 = {p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]};
+            const bx::Vec3 e2 = {p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]};
+            bx::Vec3 n = bx::cross(e1, e2);
+            const float len2 = n.x * n.x + n.y * n.y + n.z * n.z;
+            if (len2 > 1e-12f)
+            {
+                const float invLen = 1.0f / bx::sqrt(len2);
+                n = {n.x * invLen, n.y * invLen, n.z * invLen};
+            }
+            else
+            {
+                n = {0.0f, 1.0f, 0.0f};
+            }
+
+            normals[i0] = bx::add(normals[i0], n);
+            normals[i1] = bx::add(normals[i1], n);
+            normals[i2] = bx::add(normals[i2], n);
+        }
+        if (f) fprintf(f, "  step: normals computed\n");
+        for (uint32_t i = 0; i < numVert; ++i)
+        {
+            bx::Vec3& n = normals[i];
+            const float len2 = n.x * n.x + n.y * n.y + n.z * n.z;
+            if (len2 > 1e-12f)
+            {
+                const float invLen = 1.0f / bx::sqrt(len2);
+                n = {n.x * invLen, n.y * invLen, n.z * invLen};
+            }
+            else
+            {
+                n = {0.0f, 1.0f, 0.0f};
+            }
+        }
+        if (f) fprintf(f, "  step: normals normalized\n");
+
+        // Pack position (3 floats) + color (RGBA8) into a bgfx vertex buffer.
+        struct ModelVertex
+        {
+            float    x, y, z;
+            uint32_t abgr;
+        };
+
+        std::vector<ModelVertex> vertices(numVert);
+        for (uint32_t i = 0; i < numVert; ++i)
+        {
+            const float* p = &mesh.vertProperties[i * mesh.numProp];
+            const bx::Vec3& n = normals[i];
+
+            const uint8_t r = uint8_t(bx::clamp(n.x * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+            const uint8_t g = uint8_t(bx::clamp(n.y * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+            const uint8_t b = uint8_t(bx::clamp(n.z * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+            const uint8_t a = 255;
+
+            vertices[i].x = p[0];
+            vertices[i].y = p[1];
+            vertices[i].z = p[2];
+            vertices[i].abgr = 0xFF0000FF;
+        }
+        if (f) { fprintf(f, "  step: vertices packed, first pos=(%f,%f,%f)\n", vertices[0].x, vertices[0].y, vertices[0].z); fclose(f); }
+
+        m_modelLayout
+            .begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
+            .end();
+
+        m_modelVbh = bgfx::createVertexBuffer(
+            bgfx::copy(vertices.data(), uint32_t(vertices.size() * sizeof(ModelVertex))),
+            m_modelLayout
+        );
+
+        m_modelIbh = bgfx::createIndexBuffer(
+            bgfx::copy(mesh.triVerts.data(), uint32_t(mesh.triVerts.size() * sizeof(uint32_t))),
+            BGFX_BUFFER_INDEX32
+        );
+
+        m_modelIndexCount = numTri * 3;
+        m_modelBuilt = true;
+
+        FILE* f2 = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
+        if (f2) { fprintf(f2, "  buffers built: vbh valid=%d ibh valid=%d indices=%u\n",
+                         int(bgfx::isValid(m_modelVbh)), int(bgfx::isValid(m_modelIbh)),
+                         m_modelIndexCount); fclose(f2); }
+    }
+
+    {
+        FILE* f = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
+        if (f) { fprintf(f, "  about to submit\n"); fclose(f); }
+    }
+
+    float model[16];
+    bx::mtxIdentity(model);
+
+    bgfx::setTransform(model);
+    bgfx::setVertexBuffer(0, m_modelVbh);
+    bgfx::setIndexBuffer(m_modelIbh);
+    // Depth test + RGB write, no face culling so every face is drawn.
+    bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
+    bgfx::submit(0, m_program);
+
+    {
+        FILE* f = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
+        if (f) { fprintf(f, "  submit done\n"); fclose(f); }
+    }
+}
+
 void BgfxWindow::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
@@ -126,6 +287,9 @@ bool BgfxWindow::initBgfx()
 
     if (!initCube())
         return false;
+
+    // Sample manifold model rendered by drawModel().
+    m_manifold = manifold::Manifold::Sphere(1.0, 64);
 
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, &BgfxWindow::renderFrame);
@@ -276,18 +440,7 @@ void BgfxWindow::renderFrame()
 
     bgfx::touch(0);
 
-    if (m_cubeInitialized)
-    {
-        float model[16];
-        bx::mtxIdentity(model);
-
-        bgfx::setTransform(model);
-        bgfx::setVertexBuffer(0, m_vbh);
-        bgfx::setIndexBuffer(m_ibh);
-        // Disable face culling so every face is drawn regardless of winding.
-        bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
-        bgfx::submit(0, m_program);
-    }
+    drawModel();
 
     bgfx::frame();
 }
@@ -407,6 +560,12 @@ void BgfxWindow::shutdownBgfx()
     }
 
     destroyCube();
+
+    if (bgfx::isValid(m_modelVbh)) bgfx::destroy(m_modelVbh);
+    if (bgfx::isValid(m_modelIbh)) bgfx::destroy(m_modelIbh);
+    m_modelVbh = BGFX_INVALID_HANDLE;
+    m_modelIbh = BGFX_INVALID_HANDLE;
+    m_modelBuilt = false;
 
     bgfx::shutdown();
 

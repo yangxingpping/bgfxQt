@@ -112,6 +112,20 @@ add_custom_target(bgfx_shaders ALL DEPENDS ${_shader_headers})
 add_dependencies(bgfxQt bgfx_shaders)
 target_include_directories(bgfxQt PRIVATE "${_shader_gen_dir}")
 
+# --- manifold runtime DLLs (classic vcpkg mode does not auto-deploy) -------
+# manifold is a shared library; copy its DLL and its oneTBB dependency next to
+# the executable so the app runs without vcpkg/bin on PATH.
+get_filename_component(_manifold_prefix "${manifold_DIR}/../.." ABSOLUTE)
+add_custom_command(TARGET bgfxQt POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${_manifold_prefix}/bin/manifold.dll"
+        "${_manifold_prefix}/bin/tbb12.dll"
+        "${_manifold_prefix}/bin/tbbmalloc.dll"
+        $<TARGET_FILE_DIR:bgfxQt>
+    COMMENT "Copying manifold runtime DLLs"
+    VERBATIM
+)
+
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.

@@ -5,6 +5,7 @@
 
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
+#include <manifold/manifold.h>
 
 QT_BEGIN_NAMESPACE
 class QMouseEvent;
@@ -37,7 +38,7 @@ private:
     void shutdownBgfx();
     void renderFrame();
     QSize physicalSize() const;
-
+	void drawModel();
 private:
     bool m_bgfxInitialized = false;
     bool m_cubeInitialized = false;
@@ -51,6 +52,13 @@ private:
     bgfx::ShaderHandle m_fragmentShader = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle m_program = BGFX_INVALID_HANDLE;
 
+    // Model mesh (uploaded from m_manifold)
+    bgfx::VertexLayout       m_modelLayout;
+    bgfx::VertexBufferHandle m_modelVbh = BGFX_INVALID_HANDLE;
+    bgfx::IndexBufferHandle  m_modelIbh = BGFX_INVALID_HANDLE;
+    uint32_t                 m_modelIndexCount = 0;
+    bool                     m_modelBuilt = false;
+
     // Orbit camera
     bool  m_leftDragging   = false;
     bool  m_rightDragging  = false;
@@ -59,4 +67,6 @@ private:
     float m_cameraDistance = 5.0f;
     float m_cameraYaw      = 0.0f;   // radians, around Y
     float m_cameraPitch    = 0.0f;   // radians
+
+	manifold::Manifold m_manifold;
 };
