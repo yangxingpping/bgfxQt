@@ -617,8 +617,9 @@ void BgfxWindow::mousePressEvent(QMouseEvent* event)
                 const float sy = (cornerIdx & 2) ? 1.0f : -1.0f;
                 const float sz = (cornerIdx & 4) ? 1.0f : -1.0f;
                 // Camera looks from corner toward center: direction is (-sx, -sy, -sz).
-                m_cameraYaw = std::atan2(-sx, -sz);
-                m_cameraPitch = std::atan2(-sy, std::sqrt(sx * sx + sz * sz));
+                // yaw = atan2(-dx, dz) where (dx,dy,dz) = (-sx,-sy,-sz), so yaw = atan2(sx, -sz).
+                m_cameraYaw = std::atan2(sx, -sz);
+                m_cameraPitch = std::atan2(sy, std::sqrt(sx * sx + sz * sz));
             }
             else if (face >= 14 && face <= 25)
             {
@@ -645,10 +646,10 @@ void BgfxWindow::mousePressEvent(QMouseEvent* event)
                     sy = (e & 1) ? 1.0f : -1.0f;
                     sz = (e & 2) ? 1.0f : -1.0f;
                 }
-                // Camera looks from edge toward center.
-                const float len = std::sqrt(sx * sx + sy * sy + sz * sz);
-                m_cameraYaw = std::atan2(-sx, -sz);
-                m_cameraPitch = std::atan2(-sy, len);
+                // Camera looks from edge toward center: direction is (-sx, -sy, -sz).
+                // yaw = atan2(sx, -sz), pitch = atan2(sy, sqrt(sx² + sz²)).
+                m_cameraYaw = std::atan2(sx, -sz);
+                m_cameraPitch = std::atan2(sy, std::sqrt(sx * sx + sz * sz));
             }
             return;
         }
