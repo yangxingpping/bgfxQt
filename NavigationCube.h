@@ -48,12 +48,22 @@ public:
                  int& outFace) const;
 
 private:
+    // Solid chamfered cube (single color), rendered with the color program.
     bgfx::VertexBufferHandle m_vbh     = BGFX_INVALID_HANDLE;
     bgfx::IndexBufferHandle  m_ibh     = BGFX_INVALID_HANDLE;
     bgfx::VertexLayout       m_layout;
     bgfx::ProgramHandle      m_program = BGFX_INVALID_HANDLE;
     uint32_t                 m_indexCount = 0;
     bool                     m_initialized = false;
+
+    // Text labels rendered as textured quads on each face.
+    bgfx::ProgramHandle      m_textProgram = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle      m_texture     = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle      m_texSampler  = BGFX_INVALID_HANDLE;
+    bgfx::VertexBufferHandle m_textVbh     = BGFX_INVALID_HANDLE;
+    bgfx::IndexBufferHandle  m_textIbh     = BGFX_INVALID_HANDLE;
+    bgfx::VertexLayout       m_textLayout;
+    uint32_t                 m_textIndexCount = 0;
 
     // Cached orientation for hit testing (matches the last render call).
     float m_yaw   = 0.0f;

@@ -90,24 +90,26 @@ function(bgfx_compile_shader outvar src stage platform profile array_name)
 endfunction()
 
 set(_shader_headers "")
-foreach(_stage vs fs)
-    if(_stage STREQUAL "vs")
-        set(_type vertex)
-    else()
-        set(_type fragment)
-    endif()
+foreach(_shader cube textured)
+    foreach(_stage vs fs)
+        if(_stage STREQUAL "vs")
+            set(_type vertex)
+        else()
+            set(_type fragment)
+        endif()
 
-    # Direct3D 11 / 12 share the same s_5_0 bytecode.
-    bgfx_compile_shader(_h
-        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${_stage}_cube.sc"
-        ${_type} windows s_5_0 "${_stage}_cube_dx11")
-    list(APPEND _shader_headers "${_h}")
+        # Direct3D 11 / 12 share the same s_5_0 bytecode.
+        bgfx_compile_shader(_h
+            "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${_stage}_${_shader}.sc"
+            ${_type} windows s_5_0 "${_stage}_${_shader}_dx11")
+        list(APPEND _shader_headers "${_h}")
 
-    # Vulkan (SPIR-V).
-    bgfx_compile_shader(_h
-        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${_stage}_cube.sc"
-        ${_type} linux spirv "${_stage}_cube_vk")
-    list(APPEND _shader_headers "${_h}")
+        # Vulkan (SPIR-V).
+        bgfx_compile_shader(_h
+            "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${_stage}_${_shader}.sc"
+            ${_type} linux spirv "${_stage}_${_shader}_vk")
+        list(APPEND _shader_headers "${_h}")
+    endforeach()
 endforeach()
 
 add_custom_target(bgfx_shaders ALL DEPENDS ${_shader_headers})
