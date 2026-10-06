@@ -10,12 +10,9 @@
 /// orientation, and clicking a face snaps the camera to look along that axis.
 ///
 /// Face indices (used by hitTest):
-///   0 -> +X (right)
-///   1 -> -X (left)
-///   2 -> +Y (rear)
-///   3 -> -Y (front)
-///   4 -> +Z (top)
-///   5 -> -Z (bottom)
+///   0-5:   Main faces (+X, -X, +Y, -Y, +Z, -Z)
+///   6-13:  Corner chamfers (8 corners at (±1, ±1, ±1))
+///   14-25: Edge chamfers (12 edges)
 class NavigationCube
 {
 public:

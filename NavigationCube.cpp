@@ -644,6 +644,81 @@ bool NavigationCube::hitTest(int mouseX, int mouseY,
     if (tmin < 0.0f)
         return false;
 
+    // Calculate hit point.
+    const bx::Vec3 hitPoint = {
+        o[0] + tmin * d[0],
+        o[1] + tmin * d[1],
+        o[2] + tmin * d[2]
+    };
+
+    // Check corner chamfers first (8 corners at (±1, ±1, ±1)).
+    // Corner chamfer plane: sx*x + sy*y + sz*z = 3 - kCornerChamfer.
+    const float cornerThreshold = 3.0f - float(kCornerChamfer);
+    int cornerIdx = -1;
+    for (int sx = -1; sx <= 1; sx += 2)
+        for (int sy = -1; sy <= 1; sy += 2)
+            for (int sz = -1; sz <= 1; sz += 2)
+            {
+                const float dot = float(sx) * hitPoint.x + float(sy) * hitPoint.y + float(sz) * hitPoint.z;
+                if (dot > cornerThreshold)
+                {
+                    // Encode corner index: bit 0 = sx sign, bit 1 = sy sign, bit 2 = sz sign.
+                    cornerIdx = ((sx > 0) ? 1 : 0) | ((sy > 0) ? 2 : 0) | ((sz > 0) ? 4 : 0);
+                    break;
+                }
+            }
+
+    if (cornerIdx >= 0)
+    {
+        outFace = 6 + cornerIdx; // Corner faces: 6-13.
+        return true;
+    }
+
+    // Check edge chamfers (12 edges).
+    // Edge chamfer plane: sa*a + sb*b = 2 - kChamfer (a,b are axes perpendicular to edge).
+    const float edgeThreshold = 2.0f - float(kChamfer);
+
+    // 4 edges parallel to Z at (±1, ±1, *).
+    for (int sx = -1; sx <= 1; sx += 2)
+        for (int sy = -1; sy <= 1; sy += 2)
+        {
+            const float dot = float(sx) * hitPoint.x + float(sy) * hitPoint.y;
+            if (dot > edgeThreshold)
+            {
+                // Edge index: 0-3 for Z-parallel edges.
+                const int edgeIdx = ((sx > 0) ? 1 : 0) | ((sy > 0) ? 2 : 0);
+                outFace = 14 + edgeIdx; // Edge faces: 14-17.
+                return true;
+            }
+        }
+
+    // 4 edges parallel to Y at (±1, *, ±1).
+    for (int sx = -1; sx <= 1; sx += 2)
+        for (int sz = -1; sz <= 1; sz += 2)
+        {
+            const float dot = float(sx) * hitPoint.x + float(sz) * hitPoint.z;
+            if (dot > edgeThreshold)
+            {
+                const int edgeIdx = ((sx > 0) ? 1 : 0) | ((sz > 0) ? 2 : 0);
+                outFace = 18 + edgeIdx; // Edge faces: 18-21.
+                return true;
+            }
+        }
+
+    // 4 edges parallel to X at (*, ±1, ±1).
+    for (int sy = -1; sy <= 1; sy += 2)
+        for (int sz = -1; sz <= 1; sz += 2)
+        {
+            const float dot = float(sy) * hitPoint.y + float(sz) * hitPoint.z;
+            if (dot > edgeThreshold)
+            {
+                const int edgeIdx = ((sy > 0) ? 1 : 0) | ((sz > 0) ? 2 : 0);
+                outFace = 22 + edgeIdx; // Edge faces: 22-25.
+                return true;
+            }
+        }
+
+    // Main face hit.
     outFace = hitAxis * 2 + (hitSign > 0 ? 1 : 0);
     return true;
 }
