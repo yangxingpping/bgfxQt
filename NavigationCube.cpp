@@ -23,10 +23,10 @@
 namespace
 {
 
-// Chamfer width = 1/5 of the cube edge length. The cube spans [-1, 1] so its
+// Chamfer width = 1/10 of the cube edge length. The cube spans [-1, 1] so its
 // edge length is 2; each corner is cut by the plane sx*x + sy*y + sz*z =
 // 3 - kChamfer, giving flat 45-degree bevels on all edges and corners.
-constexpr float kChamfer = 2.0f / 5.0f;
+constexpr float kChamfer = 1.0f / 5.0f;
 
 // Orthographic half-extent (cube is [-1,1], so [-2,2] leaves a margin).
 constexpr float kOrthoHalf = 2.0f;
@@ -371,7 +371,7 @@ void NavigationCube::init(bgfx::ProgramHandle program)
     std::vector<uint16_t>   textIdx;
 
     // Half-size of the text quad. The chamfer leaves a flat central region of
-    // half-size (1 - kChamfer) = 0.6 on each face; 0.55 fits inside it.
+    // half-size (1 - kChamfer) = 0.8 on each face; 0.55 fits inside it.
     const float half = 0.55f;
     // Push the quad just outside the face to avoid z-fighting.
     const float push = 1.01f;
