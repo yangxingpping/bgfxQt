@@ -477,6 +477,7 @@ bool BgfxWindow::initBgfx()
 
     init.platformData.nwh = hwnd;
 
+
     const QSize fbSize = physicalSize();
 
     init.resolution.width  = fbSize.width();
@@ -490,6 +491,8 @@ bool BgfxWindow::initBgfx()
     }
 
 #endif
+
+    bgfx::setDebug(BGFX_DEBUG_STATS);
 
     m_bgfxInitialized = true;
 
