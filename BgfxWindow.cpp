@@ -239,9 +239,9 @@ void BgfxWindow::drawAxis3D()
 
         // Dimensions.
         const float shaftLen   = 1.6f;
-        const float shaftHalf  = 0.035f;
+        const float shaftHalf  = 0.0175f;
         const float tipLen     = 0.30f;
-        const float tipRadius  = 0.11f;
+        const float tipRadius  = 0.055f;
 
         auto addBox = [&](uint32_t color,
                           float x0, float y0, float z0,
