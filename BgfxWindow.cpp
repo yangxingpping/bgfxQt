@@ -206,6 +206,15 @@ void BgfxWindow::drawModel()
             .add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
             .end();
 
+        {
+            FILE* fl = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
+            if (fl) {
+                fprintf(fl, "  layout stride=%u sizeof(ModelVertex)=%zu v[0].abgr=0x%08x\n",
+                        m_modelLayout.getStride(), sizeof(ModelVertex), vertices[0].abgr);
+                fclose(fl);
+            }
+        }
+
         m_modelVbh = bgfx::createVertexBuffer(
             bgfx::copy(vertices.data(), uint32_t(vertices.size() * sizeof(ModelVertex))),
             m_modelLayout
@@ -289,7 +298,7 @@ bool BgfxWindow::initBgfx()
         return false;
 
     // Sample manifold model rendered by drawModel().
-    m_manifold = manifold::Manifold::Sphere(1.0, 64);
+    m_manifold = manifold::Manifold::Cube(manifold::vec3(1.0f, 2.0f, 4.0f));
 
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, &BgfxWindow::renderFrame);
