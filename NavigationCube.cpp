@@ -43,10 +43,10 @@ constexpr uint8_t kCubeB = 228;
 // Face definitions for the text labels.
 //   face 0: +X -> "right"
 //   face 1: -X -> "left"
-//   face 2: +Y -> "top"
-//   face 3: -Y -> "bottom"
-//   face 4: +Z -> "near"
-//   face 5: -Z -> "far"
+//   face 2: +Y -> "rear"
+//   face 3: -Y -> "front"
+//   face 4: +Z -> "top"
+//   face 5: -Z -> "bottom"
 // For each face: center, outward normal, quad right-axis, quad up-axis.
 struct FaceDef
 {
@@ -63,10 +63,10 @@ const FaceDef kFaces[6] =
 {
     { "right",  { 1.0f, 0.0f, 0.0f}, { 1, 0, 0}, { 0, 0,-1}, { 0, 1, 0}, 1, 0 },
     { "left",   {-1.0f, 0.0f, 0.0f}, {-1, 0, 0}, { 0, 0, 1}, { 0, 1, 0}, 0, 0 },
-    { "top",    { 0.0f, 1.0f, 0.0f}, { 0, 1, 0}, { 1, 0, 0}, { 0, 0,-1}, 2, 0 },
-    { "bottom", { 0.0f,-1.0f, 0.0f}, { 0,-1, 0}, { 1, 0, 0}, { 0, 0, 1}, 0, 1 },
-    { "near",   { 0.0f, 0.0f, 1.0f}, { 0, 0, 1}, { 1, 0, 0}, { 0, 1, 0}, 1, 1 },
-    { "far",    { 0.0f, 0.0f,-1.0f}, { 0, 0,-1}, {-1, 0, 0}, { 0, 1, 0}, 2, 1 },
+    { "rear",   { 0.0f, 1.0f, 0.0f}, { 0, 1, 0}, { 1, 0, 0}, { 0, 0,-1}, 2, 0 },
+    { "front",  { 0.0f,-1.0f, 0.0f}, { 0,-1, 0}, { 1, 0, 0}, { 0, 0, 1}, 0, 1 },
+    { "top",    { 0.0f, 0.0f, 1.0f}, { 0, 0, 1}, { 1, 0, 0}, { 0, 1, 0}, 1, 1 },
+    { "bottom", { 0.0f, 0.0f,-1.0f}, { 0, 0,-1}, {-1, 0, 0}, { 0, 1, 0}, 2, 1 },
 };
 
 } // namespace
@@ -334,7 +334,7 @@ void NavigationCube::init(bgfx::ProgramHandle program)
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.setRenderHint(QPainter::TextAntialiasing, true);
 
-        QFont font("Arial", 77, QFont::Bold);
+        QFont font("Arial", 61, QFont::Bold);
         painter.setFont(font);
         painter.setPen(QColor(40, 40, 48));
 

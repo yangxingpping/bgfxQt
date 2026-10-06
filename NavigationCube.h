@@ -12,10 +12,10 @@
 /// Face indices (used by hitTest):
 ///   0 -> +X (right)
 ///   1 -> -X (left)
-///   2 -> +Y (top)
-///   3 -> -Y (bottom)
-///   4 -> +Z (front)
-///   5 -> -Z (back)
+///   2 -> +Y (rear)
+///   3 -> -Y (front)
+///   4 -> +Z (top)
+///   5 -> -Z (bottom)
 class NavigationCube
 {
 public:
