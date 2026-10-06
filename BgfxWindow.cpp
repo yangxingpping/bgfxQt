@@ -496,6 +496,7 @@ bool BgfxWindow::initBgfx()
     m_navCube.init(m_program);
 
     // Sample manifold model rendered by drawModel().
+	//m_manifold = manifold::Manifold::Sphere(1.0f);
     m_manifold = manifold::Manifold::Cube(manifold::vec3(1.0f, 1.0f, 1.0f));
 
     m_renderTimer = new QTimer(this);

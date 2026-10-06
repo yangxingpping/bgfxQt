@@ -193,13 +193,17 @@ void NavigationCube::init(bgfx::ProgramHandle program)
 
     m_indexCount = numTri * 3;
 
-    // ---- Black wireframe edges (line list) ---------------------------------
+    // ---- Black wireframe edges (thin prisms, ~2px stroke) -------------------
     // Only draw crease edges: edges where two adjacent faces meet at a
     // non-zero dihedral angle. The manifold mesh triangulates the quad/octagon
     // faces into triangles, and the internal triangulation diagonals are
     // coplanar with their neighbours (dihedral ~0deg) -- drawing those would
     // clutter the cube with messy lines, so we filter them out by face-normal
     // dot product.
+    //
+    // bgfx renders PT_LINES at a fixed 1px width, so to double the stroke each
+    // edge is extruded into a thin square prism: 2px at the kSize=140px
+    // viewport = 2 * (2*kOrthoHalf / 140) ~= 0.057 world units.
     {
         // Per-triangle face normals.
         std::vector<bx::Vec3> triNormals(numTri, {0.0f, 0.0f, 0.0f});
@@ -255,6 +259,63 @@ void NavigationCube::init(bgfx::ProgramHandle program)
         std::vector<Vertex>   edgeVerts;
         std::vector<uint16_t> edgeIdx;
 
+        // Half-thickness of the prism: ~2px total stroke at the 140px viewport.
+        const float kEdgeHalf = 0.029f;
+
+        // Extrude one edge into a thin square prism (8 vertices, 8 triangles).
+        auto addEdgePrism = [&](const float* pa, const float* pb)
+        {
+            bx::Vec3 d = {pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]};
+            const float len = bx::length(d);
+            if (len < 1e-9f)
+                return;
+            d = bx::mul(d, 1.0f / len);
+
+            // Choose a reference axis least parallel to d.
+            bx::Vec3 ref = {1.0f, 0.0f, 0.0f};
+            if (std::fabs(d.y) <= std::fabs(d.x) && std::fabs(d.y) <= std::fabs(d.z))
+                ref = {0.0f, 1.0f, 0.0f};
+            else if (std::fabs(d.z) <= std::fabs(d.x) && std::fabs(d.z) <= std::fabs(d.y))
+                ref = {0.0f, 0.0f, 1.0f};
+
+            const bx::Vec3 u = bx::normalize(bx::cross(d, ref));
+            const bx::Vec3 v = bx::cross(d, u);
+
+            // Extend both endpoints by h along d so adjacent prisms overlap at
+            // corners instead of leaving gaps.
+            const bx::Vec3 a = {pa[0] - d.x * kEdgeHalf, pa[1] - d.y * kEdgeHalf, pa[2] - d.z * kEdgeHalf};
+            const bx::Vec3 b = {pb[0] + d.x * kEdgeHalf, pb[1] + d.y * kEdgeHalf, pb[2] + d.z * kEdgeHalf};
+
+            const uint16_t base = uint16_t(edgeVerts.size());
+            const bx::Vec3 ends[2] = {a, b};
+            for (const bx::Vec3& p : ends)
+            {
+                edgeVerts.push_back({p.x + u.x * kEdgeHalf + v.x * kEdgeHalf,
+                                     p.y + u.y * kEdgeHalf + v.y * kEdgeHalf,
+                                     p.z + u.z * kEdgeHalf + v.z * kEdgeHalf, blackAbgr});
+                edgeVerts.push_back({p.x + u.x * kEdgeHalf - v.x * kEdgeHalf,
+                                     p.y + u.y * kEdgeHalf - v.y * kEdgeHalf,
+                                     p.z + u.z * kEdgeHalf - v.z * kEdgeHalf, blackAbgr});
+                edgeVerts.push_back({p.x - u.x * kEdgeHalf - v.x * kEdgeHalf,
+                                     p.y - u.y * kEdgeHalf - v.y * kEdgeHalf,
+                                     p.z - u.z * kEdgeHalf - v.z * kEdgeHalf, blackAbgr});
+                edgeVerts.push_back({p.x - u.x * kEdgeHalf + v.x * kEdgeHalf,
+                                     p.y - u.y * kEdgeHalf + v.y * kEdgeHalf,
+                                     p.z - u.z * kEdgeHalf + v.z * kEdgeHalf, blackAbgr});
+            }
+
+            // 4 side quads (2 triangles each). Culling is disabled in the draw
+            // state, so winding does not matter.
+            for (uint16_t side = 0; side < 4; ++side)
+            {
+                const uint16_t n0 = uint16_t(base + side);
+                const uint16_t n1 = uint16_t(base + (side + 1) % 4);
+                const uint16_t f0 = uint16_t(n0 + 4);
+                const uint16_t f1 = uint16_t(n1 + 4);
+                edgeIdx.insert(edgeIdx.end(), {n0, f0, f1, n0, f1, n1});
+            }
+        };
+
         for (const auto& entry : edgeTris)
         {
             const auto& e     = entry.first;
@@ -276,11 +337,7 @@ void NavigationCube::init(bgfx::ProgramHandle program)
 
             const float* pa = &gl.vertProperties[e.first  * gl.numProp];
             const float* pb = &gl.vertProperties[e.second * gl.numProp];
-            edgeVerts.push_back({pa[0], pa[1], pa[2], blackAbgr});
-            edgeVerts.push_back({pb[0], pb[1], pb[2], blackAbgr});
-            const uint16_t base = uint16_t(edgeVerts.size() - 2);
-            edgeIdx.push_back(base);
-            edgeIdx.push_back(uint16_t(base + 1));
+            addEdgePrism(pa, pb);
         }
 
         m_edgeVbh = bgfx::createVertexBuffer(
@@ -537,8 +594,8 @@ void NavigationCube::render(uint8_t view,
     bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
     bgfx::submit(view, m_program);
 
-    // 2) Black wireframe edges (line list). Drawn on top of the faces with
-    // depth test LEQUAL so they show through without z-fighting.
+    // 2) Black wireframe edges (thin prisms, ~2px stroke). Drawn on top of the
+    // faces with depth test LEQUAL so they show through without z-fighting.
     bgfx::setTransform(model);
     bgfx::setVertexBuffer(0, m_edgeVbh);
     bgfx::setIndexBuffer(m_edgeIbh, 0, m_edgeIndexCount);
@@ -546,7 +603,6 @@ void NavigationCube::render(uint8_t view,
         (BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK & ~BGFX_STATE_WRITE_Z
                               & ~BGFX_STATE_DEPTH_TEST_MASK)
         | BGFX_STATE_DEPTH_TEST_LEQUAL
-        | BGFX_STATE_PT_LINES
     );
     bgfx::submit(view, m_program);
 
