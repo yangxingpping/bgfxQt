@@ -11,6 +11,9 @@
 #include <bgfx/platform.h>
 #include <bx/math.h>
 
+#include "WLog.h"
+#include "MachineCut.h"
+
 #include <cmath>
 #include <vector>
 
@@ -498,6 +501,7 @@ bool BgfxWindow::initBgfx()
     // Sample manifold model rendered by drawModel().
 	//m_manifold = manifold::Manifold::Sphere(1.0f);
     m_manifold = manifold::Manifold::Cube(manifold::vec3(1.0f, 1.0f, 1.0f));
+    m_manifold = manifold::Manifold(MachineCut::TestCut());
 
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, &BgfxWindow::renderFrame);

@@ -24,7 +24,7 @@ manifold::MeshGL MachineCut::TestCut()
 	vector<Manifold> carvingTools;
 	double unit_size = 10.0 / 1000;
 
-	for (int j = 0; j < 20; ++j) {
+	for (int j = 0; j < 1; ++j) {
 
 		for (int i = 0; i < 1000; ++i) {
 			float x = 5.0f;
