@@ -12,7 +12,6 @@
 #include <bx/math.h>
 
 #include <vector>
-#include <cstdio>
 
 #include "vs_cube_dx11.bin.h"
 #include "fs_cube_dx11.bin.h"
@@ -91,42 +90,18 @@ QSize BgfxWindow::physicalSize() const
 
 void BgfxWindow::drawModel()
 {
-    {
-        static int callCount = 0;
-        if (callCount < 3)
-        {
-            FILE* f = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
-            if (f)
-            {
-                fprintf(f, "drawModel call#%d isEmpty=%d numVert=%zu numTri=%zu\n",
-                        callCount, int(m_manifold.IsEmpty()),
-                        m_manifold.NumVert(), m_manifold.NumTri());
-                fclose(f);
-            }
-            callCount++;
-        }
-    }
-
     if (m_manifold.IsEmpty())
         return;
 
     // Upload the manifold mesh to GPU buffers once (lazy).
     if (!m_modelBuilt)
     {
-        FILE* f = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
-        if (f) fprintf(f, "  step: get mesh\n");
         const manifold::MeshGL mesh = m_manifold.GetMeshGL();
         const uint32_t numVert = uint32_t(mesh.NumVert());
         const uint32_t numTri  = uint32_t(mesh.NumTri());
-        if (f) fprintf(f, "  mesh sizes: vertProps=%zu numProp=%u triVerts=%zu numVert=%u numTri=%u\n",
-                       mesh.vertProperties.size(), mesh.numProp, mesh.triVerts.size(), numVert, numTri);
 
         if (numVert == 0 || numTri == 0)
-        {
-            if (f) { fprintf(f, "  empty mesh, return\n"); fclose(f); }
             return;
-        }
-        if (f) fprintf(f, "  step: numProp=%u numVert=%u numTri=%u\n", mesh.numProp, numVert, numTri);
 
         // Compute per-vertex normals by averaging face normals.
         std::vector<bx::Vec3> normals(numVert, {0.0f, 0.0f, 0.0f});
@@ -158,7 +133,6 @@ void BgfxWindow::drawModel()
             normals[i1] = bx::add(normals[i1], n);
             normals[i2] = bx::add(normals[i2], n);
         }
-        if (f) fprintf(f, "  step: normals computed\n");
         for (uint32_t i = 0; i < numVert; ++i)
         {
             bx::Vec3& n = normals[i];
@@ -173,7 +147,6 @@ void BgfxWindow::drawModel()
                 n = {0.0f, 1.0f, 0.0f};
             }
         }
-        if (f) fprintf(f, "  step: normals normalized\n");
 
         // Pack position (3 floats) + color (RGBA8) into a bgfx vertex buffer.
         struct ModelVertex
@@ -188,6 +161,7 @@ void BgfxWindow::drawModel()
             const float* p = &mesh.vertProperties[i * mesh.numProp];
             const bx::Vec3& n = normals[i];
 
+            // Map normal direction to a color (n * 0.5 + 0.5) for a shaded look.
             const uint8_t r = uint8_t(bx::clamp(n.x * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
             const uint8_t g = uint8_t(bx::clamp(n.y * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
             const uint8_t b = uint8_t(bx::clamp(n.z * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
@@ -196,24 +170,18 @@ void BgfxWindow::drawModel()
             vertices[i].x = p[0];
             vertices[i].y = p[1];
             vertices[i].z = p[2];
-            vertices[i].abgr = 0xFF0000FF;
+            vertices[i].abgr =
+                (uint32_t(a) << 24) |
+                (uint32_t(b) << 16) |
+                (uint32_t(g) << 8)  |
+                 uint32_t(r);
         }
-        if (f) { fprintf(f, "  step: vertices packed, first pos=(%f,%f,%f)\n", vertices[0].x, vertices[0].y, vertices[0].z); fclose(f); }
 
         m_modelLayout
             .begin()
             .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
             .add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
             .end();
-
-        {
-            FILE* fl = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
-            if (fl) {
-                fprintf(fl, "  layout stride=%u sizeof(ModelVertex)=%zu v[0].abgr=0x%08x\n",
-                        m_modelLayout.getStride(), sizeof(ModelVertex), vertices[0].abgr);
-                fclose(fl);
-            }
-        }
 
         m_modelVbh = bgfx::createVertexBuffer(
             bgfx::copy(vertices.data(), uint32_t(vertices.size() * sizeof(ModelVertex))),
@@ -227,16 +195,6 @@ void BgfxWindow::drawModel()
 
         m_modelIndexCount = numTri * 3;
         m_modelBuilt = true;
-
-        FILE* f2 = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
-        if (f2) { fprintf(f2, "  buffers built: vbh valid=%d ibh valid=%d indices=%u\n",
-                         int(bgfx::isValid(m_modelVbh)), int(bgfx::isValid(m_modelIbh)),
-                         m_modelIndexCount); fclose(f2); }
-    }
-
-    {
-        FILE* f = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
-        if (f) { fprintf(f, "  about to submit\n"); fclose(f); }
     }
 
     float model[16];
@@ -248,11 +206,6 @@ void BgfxWindow::drawModel()
     // Depth test + RGB write, no face culling so every face is drawn.
     bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
     bgfx::submit(0, m_program);
-
-    {
-        FILE* f = fopen("C:/Users/youngxp/Documents/clang/bgfxQt/build_win/drawmodel.log", "a");
-        if (f) { fprintf(f, "  submit done\n"); fclose(f); }
-    }
 }
 
 void BgfxWindow::showEvent(QShowEvent* event)
@@ -296,6 +249,9 @@ bool BgfxWindow::initBgfx()
 
     if (!initCube())
         return false;
+
+    // Navigation cube shares the same position+color shader as the cube.
+    m_navCube.init(m_program);
 
     // Sample manifold model rendered by drawModel().
     m_manifold = manifold::Manifold::Cube(manifold::vec3(1.0f, 2.0f, 4.0f));
@@ -451,6 +407,10 @@ void BgfxWindow::renderFrame()
 
     drawModel();
 
+    // Render the navigation cube overlay in the top-left corner (view 1).
+    m_navCube.render(1, m_cameraYaw, m_cameraPitch,
+                     uint16_t(fbSize.width()), uint16_t(fbSize.height()));
+
     bgfx::frame();
 }
 
@@ -460,8 +420,32 @@ void BgfxWindow::mousePressEvent(QMouseEvent* event)
 
     const QPoint pos = event->position().toPoint();
 
+    // Convert widget-local (DIP) coordinates to physical pixels so they match
+    // the bgfx framebuffer coordinates used by the navigation cube.
+    const qreal dpr = devicePixelRatioF();
+    const int   px  = int(pos.x() * dpr);
+    const int   py  = int(pos.y() * dpr);
+
     if (event->button() == Qt::LeftButton)
     {
+        int face = -1;
+        const QSize fb = physicalSize();
+        if (m_navCube.hitTest(px, py, uint16_t(fb.width()), uint16_t(fb.height()), face))
+        {
+            // Snap the camera to look along the clicked face's axis.
+            // Face: 0:+X, 1:-X, 2:+Y, 3:-Y, 4:+Z, 5:-Z
+            switch (face)
+            {
+                case 0: m_cameraYaw = -bx::kPi * 0.5f; m_cameraPitch = 0.0f; break;
+                case 1: m_cameraYaw =  bx::kPi * 0.5f; m_cameraPitch = 0.0f; break;
+                case 2: m_cameraYaw = 0.0f;            m_cameraPitch =  bx::kPi * 0.5f; break;
+                case 3: m_cameraYaw = 0.0f;            m_cameraPitch = -bx::kPi * 0.5f; break;
+                case 4: m_cameraYaw = 0.0f;            m_cameraPitch = 0.0f; break;
+                case 5: m_cameraYaw = bx::kPi;         m_cameraPitch = 0.0f; break;
+            }
+            return;
+        }
+
         m_leftDragging  = true;
         m_lastMousePos  = pos;
         setCursor(Qt::ClosedHandCursor);
@@ -569,6 +553,7 @@ void BgfxWindow::shutdownBgfx()
     }
 
     destroyCube();
+    m_navCube.destroy();
 
     if (bgfx::isValid(m_modelVbh)) bgfx::destroy(m_modelVbh);
     if (bgfx::isValid(m_modelIbh)) bgfx::destroy(m_modelIbh);

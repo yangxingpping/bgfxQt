@@ -7,6 +7,8 @@
 #include <bx/math.h>
 #include <manifold/manifold.h>
 
+#include "NavigationCube.h"
+
 QT_BEGIN_NAMESPACE
 class QMouseEvent;
 class QWheelEvent;
@@ -69,4 +71,6 @@ private:
     float m_cameraPitch    = 0.0f;   // radians
 
 	manifold::Manifold m_manifold;
+
+    NavigationCube m_navCube;
 };
