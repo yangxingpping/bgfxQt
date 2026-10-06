@@ -638,13 +638,21 @@ void BgfxWindow::renderFrame()
     float view[16];
     bx::mtxLookAt(view, eye, at);
 
+    // Orthographic projection.  Half-height is derived from the orbit distance
+    // using the old 60deg perspective FOV (tan 30deg) so the initial framing
+    // is unchanged and the mouse wheel still acts as zoom -- moving the camera
+    // farther now widens the ortho frustum instead of making objects smaller.
     float proj[16];
-    bx::mtxProj(
+    const float aspect    = float(fbSize.width()) / float(fbSize.height());
+    const float halfH     = m_cameraDistance * bx::tan(60.0f * bx::kPi / 360.0f);
+    const float halfW     = halfH * aspect;
+    bx::mtxOrtho(
         proj,
-        60.0f,
-        float(fbSize.width()) / float(fbSize.height()),
+        -halfW, halfW,
+        -halfH, halfH,
         0.1f,
-        100.0f,
+        1000.0f,
+        0.0f,
         bgfx::getCaps()->homogeneousDepth
     );
 
