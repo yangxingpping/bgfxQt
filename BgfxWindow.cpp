@@ -90,7 +90,7 @@ void BgfxWindow::renderFrame()
     bgfx::setViewClear(
         0,
         BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
-        0x202020ff,
+        0xff000000,
         1.0f,
         0
     );
