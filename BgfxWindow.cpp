@@ -683,15 +683,18 @@ void BgfxWindow::mousePressEvent(QMouseEvent* event)
             // Face 14-25: edge chamfers (12 edges)
             if (face >= 0 && face <= 5)
             {
-                // Main faces.
+                // Main faces.  eye offset = (sin(yaw)cos(pitch), sin(pitch),
+                // -cos(yaw)cos(pitch)) * d; to look AT a face the camera must
+                // be placed on that face's side, e.g. clicking +X puts the
+                // camera at +X (yaw = +pi/2), not the opposite side.
                 switch (face)
                 {
-                    case 0: m_cameraYaw = -bx::kPi * 0.5f; m_cameraPitch = 0.0f; break; // +X
-                    case 1: m_cameraYaw =  bx::kPi * 0.5f; m_cameraPitch = 0.0f; break; // -X
-                    case 2: m_cameraYaw = 0.0f;            m_cameraPitch =  bx::kPi * 0.5f; break; // +Y
-                    case 3: m_cameraYaw = 0.0f;            m_cameraPitch = -bx::kPi * 0.5f; break; // -Y
-                    case 4: m_cameraYaw = 0.0f;            m_cameraPitch = 0.0f; break; // +Z
-                    case 5: m_cameraYaw = bx::kPi;         m_cameraPitch = 0.0f; break; // -Z
+                    case 0: m_cameraYaw =  bx::kPi * 0.5f; m_cameraPitch = 0.0f; break; // +X (right)
+                    case 1: m_cameraYaw = -bx::kPi * 0.5f; m_cameraPitch = 0.0f; break; // -X (left)
+                    case 2: m_cameraYaw = 0.0f;            m_cameraPitch =  bx::kPi * 0.5f; break; // +Y (rear)
+                    case 3: m_cameraYaw = 0.0f;            m_cameraPitch = -bx::kPi * 0.5f; break; // -Y (front)
+                    case 4: m_cameraYaw = bx::kPi;         m_cameraPitch = 0.0f; break; // +Z (top)
+                    case 5: m_cameraYaw = 0.0f;            m_cameraPitch = 0.0f; break; // -Z (bottom)
                 }
             }
             else if (face >= 6 && face <= 13)
