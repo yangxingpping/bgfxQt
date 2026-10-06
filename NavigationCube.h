@@ -56,6 +56,11 @@ private:
     uint32_t                 m_indexCount = 0;
     bool                     m_initialized = false;
 
+    // Black wireframe edges of the chamfered cube (drawn as line list).
+    bgfx::VertexBufferHandle m_edgeVbh = BGFX_INVALID_HANDLE;
+    bgfx::IndexBufferHandle  m_edgeIbh = BGFX_INVALID_HANDLE;
+    uint32_t                 m_edgeIndexCount = 0;
+
     // Text labels rendered as textured quads on each face.
     bgfx::ProgramHandle      m_textProgram = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle      m_texture     = BGFX_INVALID_HANDLE;

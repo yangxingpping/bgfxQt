@@ -10,6 +10,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <set>
+#include <utility>
 #include <vector>
 
 #include "vs_textured_dx11.bin.h"
@@ -146,6 +148,54 @@ void NavigationCube::init(bgfx::ProgramHandle program)
     );
 
     m_indexCount = numTri * 3;
+
+    // ---- Black wireframe edges (line list) ---------------------------------
+    // Extract every unique edge from the triangle list. Adjacent triangles
+    // share an edge, so we deduplicate by storing the sorted index pair.
+    {
+        std::set<std::pair<uint32_t, uint32_t>> edgeSet;
+        for (uint32_t t = 0; t < numTri; ++t)
+        {
+            const uint32_t i0 = gl.triVerts[t * 3 + 0];
+            const uint32_t i1 = gl.triVerts[t * 3 + 1];
+            const uint32_t i2 = gl.triVerts[t * 3 + 2];
+            auto addEdge = [&](uint32_t a, uint32_t b)
+            {
+                if (a > b) std::swap(a, b);
+                edgeSet.insert({a, b});
+            };
+            addEdge(i0, i1);
+            addEdge(i1, i2);
+            addEdge(i2, i0);
+        }
+
+        const uint32_t blackAbgr = (uint32_t(255) << 24); // A=255, B=G=R=0
+
+        std::vector<Vertex>   edgeVerts;
+        std::vector<uint16_t> edgeIdx;
+        edgeVerts.reserve(edgeSet.size() * 2);
+        edgeIdx.reserve(edgeSet.size() * 2);
+
+        for (const auto& e : edgeSet)
+        {
+            const float* pa = &gl.vertProperties[e.first  * gl.numProp];
+            const float* pb = &gl.vertProperties[e.second * gl.numProp];
+            edgeVerts.push_back({pa[0], pa[1], pa[2], blackAbgr});
+            edgeVerts.push_back({pb[0], pb[1], pb[2], blackAbgr});
+            const uint16_t base = uint16_t(edgeVerts.size() - 2);
+            edgeIdx.push_back(base);
+            edgeIdx.push_back(uint16_t(base + 1));
+        }
+
+        m_edgeVbh = bgfx::createVertexBuffer(
+            bgfx::copy(edgeVerts.data(), uint32_t(edgeVerts.size() * sizeof(Vertex))),
+            m_layout
+        );
+        m_edgeIbh = bgfx::createIndexBuffer(
+            bgfx::copy(edgeIdx.data(), uint32_t(edgeIdx.size() * sizeof(uint16_t)))
+        );
+        m_edgeIndexCount = uint32_t(edgeIdx.size());
+    }
 
     // ---- Textured program for the face labels -----------------------------
     const uint8_t* vsData = nullptr;
@@ -310,6 +360,8 @@ void NavigationCube::destroy()
 
     if (bgfx::isValid(m_vbh)) bgfx::destroy(m_vbh);
     if (bgfx::isValid(m_ibh)) bgfx::destroy(m_ibh);
+    if (bgfx::isValid(m_edgeVbh)) bgfx::destroy(m_edgeVbh);
+    if (bgfx::isValid(m_edgeIbh)) bgfx::destroy(m_edgeIbh);
     if (bgfx::isValid(m_textProgram)) bgfx::destroy(m_textProgram);
     if (bgfx::isValid(m_texture))     bgfx::destroy(m_texture);
     if (bgfx::isValid(m_texSampler))  bgfx::destroy(m_texSampler);
@@ -318,6 +370,8 @@ void NavigationCube::destroy()
 
     m_vbh         = BGFX_INVALID_HANDLE;
     m_ibh         = BGFX_INVALID_HANDLE;
+    m_edgeVbh     = BGFX_INVALID_HANDLE;
+    m_edgeIbh     = BGFX_INVALID_HANDLE;
     m_textProgram = BGFX_INVALID_HANDLE;
     m_texture     = BGFX_INVALID_HANDLE;
     m_texSampler  = BGFX_INVALID_HANDLE;
@@ -384,7 +438,20 @@ void NavigationCube::render(uint8_t view,
     bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
     bgfx::submit(view, m_program);
 
-    // 2) Text labels on each face.
+    // 2) Black wireframe edges (line list). Drawn on top of the faces with
+    // depth test LEQUAL so they show through without z-fighting.
+    bgfx::setTransform(model);
+    bgfx::setVertexBuffer(0, m_edgeVbh);
+    bgfx::setIndexBuffer(m_edgeIbh, 0, m_edgeIndexCount);
+    bgfx::setState(
+        (BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK & ~BGFX_STATE_WRITE_Z
+                              & ~BGFX_STATE_DEPTH_TEST_MASK)
+        | BGFX_STATE_DEPTH_TEST_LEQUAL
+        | BGFX_STATE_PT_LINES
+    );
+    bgfx::submit(view, m_program);
+
+    // 3) Text labels on each face.
     bgfx::setTransform(model);
     bgfx::setVertexBuffer(0, m_textVbh);
     bgfx::setIndexBuffer(m_textIbh, 0, m_textIndexCount);
