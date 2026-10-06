@@ -3,6 +3,7 @@
 #include <QShowEvent>
 #include <QResizeEvent>
 #include <QCloseEvent>
+#include <QTimer>
 
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
@@ -43,8 +44,6 @@ bool BgfxWindow::initBgfx()
 
     HWND hwnd = reinterpret_cast<HWND>(winId());
 
-    bgfx::renderFrame();
-
     bgfx::Init init;
 
     init.type = bgfx::RendererType::Count;
@@ -64,6 +63,10 @@ bool BgfxWindow::initBgfx()
 #endif
 
     m_bgfxInitialized = true;
+
+    m_renderTimer = new QTimer(this);
+    connect(m_renderTimer, &QTimer::timeout, this, &BgfxWindow::renderFrame);
+    m_renderTimer->start(16);
 
     return true;
 }
@@ -119,6 +122,11 @@ void BgfxWindow::shutdownBgfx()
 {
     if (!m_bgfxInitialized)
         return;
+
+    if (m_renderTimer != nullptr)
+    {
+        m_renderTimer->stop();
+    }
 
     bgfx::shutdown();
 

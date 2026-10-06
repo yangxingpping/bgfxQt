@@ -2,6 +2,10 @@
 
 #include <QWidget>
 
+QT_BEGIN_NAMESPACE
+class QTimer;
+QT_END_NAMESPACE
+
 class BgfxWindow : public QWidget
 {
     Q_OBJECT
@@ -22,4 +26,5 @@ private:
 
 private:
     bool m_bgfxInitialized = false;
+    QTimer* m_renderTimer = nullptr;
 };
