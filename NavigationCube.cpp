@@ -86,9 +86,17 @@ void NavigationCube::init(bgfx::ProgramHandle program)
     m_program = program;
 
     // ---- Solid chamfered cube (single color) -----------------------------
+    // Start from a 2x2x2 cube, then chamfer the 8 corners AND the 12 edges.
+    // The edge chamfer uses the same kChamfer amount as the corner chamfer so
+    // the edge bevels meet the corner bevels cleanly (the corner trim planes
+    // become redundant but are left in for clarity).
     manifold::Manifold mesh = manifold::Manifold::Cube({2.0, 2.0, 2.0}, true);
     const double kInvSqrt3 = 1.0 / std::sqrt(3.0);
-    const double planeOffset = -(3.0 - double(kChamfer)) * kInvSqrt3;
+    const double kInvSqrt2 = 1.0 / std::sqrt(2.0);
+    const double cornerOffset = -(3.0 - double(kChamfer)) * kInvSqrt3;
+    const double edgeOffset   = -(2.0 - double(kChamfer)) * kInvSqrt2;
+
+    // Corner chamfers (8 planes, one per corner).
     for (int sx = -1; sx <= 1; sx += 2)
         for (int sy = -1; sy <= 1; sy += 2)
             for (int sz = -1; sz <= 1; sz += 2)
@@ -99,9 +107,42 @@ void NavigationCube::init(bgfx::ProgramHandle program)
                         double(-sy) * kInvSqrt3,
                         double(-sz) * kInvSqrt3
                     ),
-                    planeOffset
+                    cornerOffset
                 );
             }
+
+    // Edge chamfers (12 planes): 4 along Z, 4 along Y, 4 along X.
+    for (int sa = -1; sa <= 1; sa += 2)
+        for (int sb = -1; sb <= 1; sb += 2)
+        {
+            // Edge parallel to Z at (sa, sb, *): normal (-sa, -sb, 0)/sqrt2.
+            mesh = mesh.TrimByPlane(
+                manifold::vec3(
+                    double(-sa) * kInvSqrt2,
+                    double(-sb) * kInvSqrt2,
+                    0.0
+                ),
+                edgeOffset
+            );
+            // Edge parallel to Y at (sa, *, sb): normal (-sa, 0, -sb)/sqrt2.
+            mesh = mesh.TrimByPlane(
+                manifold::vec3(
+                    double(-sa) * kInvSqrt2,
+                    0.0,
+                    double(-sb) * kInvSqrt2
+                ),
+                edgeOffset
+            );
+            // Edge parallel to X at (*, sa, sb): normal (0, -sa, -sb)/sqrt2.
+            mesh = mesh.TrimByPlane(
+                manifold::vec3(
+                    0.0,
+                    double(-sa) * kInvSqrt2,
+                    double(-sb) * kInvSqrt2
+                ),
+                edgeOffset
+            );
+        }
 
     const manifold::MeshGL gl = mesh.GetMeshGL();
     const uint32_t numVert = uint32_t(gl.NumVert());
