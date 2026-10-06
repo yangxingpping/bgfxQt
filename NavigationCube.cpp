@@ -27,6 +27,8 @@ namespace
 // edge length is 2; each corner is cut by the plane sx*x + sy*y + sz*z =
 // 3 - kChamfer, giving flat 45-degree bevels on all edges and corners.
 constexpr float kChamfer = 1.0f / 5.0f;
+// Corner chamfer is larger to create visible triangular faces at each corner.
+constexpr float kCornerChamfer = 0.4f;
 
 // Orthographic half-extent (cube is [-1,1], so [-2,2] leaves a margin).
 constexpr float kOrthoHalf = 2.0f;
@@ -93,7 +95,7 @@ void NavigationCube::init(bgfx::ProgramHandle program)
     manifold::Manifold mesh = manifold::Manifold::Cube({2.0, 2.0, 2.0}, true);
     const double kInvSqrt3 = 1.0 / std::sqrt(3.0);
     const double kInvSqrt2 = 1.0 / std::sqrt(2.0);
-    const double cornerOffset = -(3.0 - double(kChamfer)) * kInvSqrt3;
+    const double cornerOffset = -(3.0 - double(kCornerChamfer)) * kInvSqrt3;
     const double edgeOffset   = -(2.0 - double(kChamfer)) * kInvSqrt2;
 
     // Corner chamfers (8 planes, one per corner).
