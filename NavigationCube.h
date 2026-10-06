@@ -20,7 +20,7 @@ class NavigationCube
 {
 public:
     // Viewport size and margin, in physical pixels.
-    static constexpr uint16_t kSize   = 140;
+    static constexpr uint16_t kSize   = 168;
     static constexpr uint16_t kMargin = 10;
 
     NavigationCube();
