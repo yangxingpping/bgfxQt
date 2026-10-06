@@ -12,6 +12,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
+find_package(bgfx CONFIG REQUIRED)
+
 set(PROJECT_SOURCES
         main.cpp
         mainwindow.cpp
@@ -42,7 +44,7 @@ else()
     endif()
 endif()
 
-target_link_libraries(bgfxQt PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(bgfxQt PRIVATE Qt${QT_VERSION_MAJOR}::Widgets PRIVATE bgfx::bx bgfx::bgfx bgfx::bimg bgfx::bimg_decode)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
