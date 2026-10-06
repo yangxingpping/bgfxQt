@@ -334,7 +334,7 @@ void NavigationCube::init(bgfx::ProgramHandle program)
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.setRenderHint(QPainter::TextAntialiasing, true);
 
-        QFont font("Arial", 96, QFont::Bold);
+        QFont font("Arial", 77, QFont::Bold);
         painter.setFont(font);
         painter.setPen(QColor(40, 40, 48));
 
