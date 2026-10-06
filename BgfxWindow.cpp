@@ -325,8 +325,9 @@ void BgfxWindow::mouseMoveEvent(QMouseEvent* event)
 
     if (m_leftDragging)
     {
-        // Horizontal drag -> yaw, vertical drag -> pitch.
-        m_cameraYaw   += float(delta.x()) * 0.005f;
+        // Horizontal drag -> yaw. Inverting the sign so the model rotates in
+        // the same direction as the cursor (drag right -> model turns right).
+        m_cameraYaw   -= float(delta.x()) * 0.005f;
         m_cameraPitch += float(delta.y()) * 0.005f;
 
         // Clamp pitch so the camera cannot flip over the poles.
