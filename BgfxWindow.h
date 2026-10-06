@@ -23,6 +23,7 @@ private:
     bool initBgfx();
     void shutdownBgfx();
     void renderFrame();
+    QSize physicalSize() const;
 
 private:
     bool m_bgfxInitialized = false;

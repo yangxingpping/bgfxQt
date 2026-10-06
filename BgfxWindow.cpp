@@ -27,6 +27,15 @@ BgfxWindow::~BgfxWindow()
     shutdownBgfx();
 }
 
+QSize BgfxWindow::physicalSize() const
+{
+    const qreal dpr = devicePixelRatioF();
+    return QSize(
+        int(width()  * dpr),
+        int(height() * dpr)
+    );
+}
+
 void BgfxWindow::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
@@ -50,8 +59,10 @@ bool BgfxWindow::initBgfx()
 
     init.platformData.nwh = hwnd;
 
-    init.resolution.width  = width();
-    init.resolution.height = height();
+    const QSize fbSize = physicalSize();
+
+    init.resolution.width  = fbSize.width();
+    init.resolution.height = fbSize.height();
 
     init.resolution.reset = BGFX_RESET_VSYNC;
 
@@ -78,9 +89,11 @@ void BgfxWindow::resizeEvent(QResizeEvent* event)
     if (!m_bgfxInitialized)
         return;
 
+    const QSize fbSize = physicalSize();
+
     bgfx::reset(
-        event->size().width(),
-        event->size().height(),
+        fbSize.width(),
+        fbSize.height(),
         BGFX_RESET_VSYNC
     );
 }
@@ -98,12 +111,14 @@ void BgfxWindow::renderFrame()
         0
     );
 
+    const QSize fbSize = physicalSize();
+
     bgfx::setViewRect(
         0,
         0,
         0,
-        uint16_t(width()),
-        uint16_t(height())
+        uint16_t(fbSize.width()),
+        uint16_t(fbSize.height())
     );
 
     bgfx::touch(0);
