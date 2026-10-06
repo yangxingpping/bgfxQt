@@ -61,11 +61,13 @@ struct FaceDef
     int         atlasRow; // 0..1
 };
 
+// right = cross(-normal, screenUp); side faces use screenUp=+Z, top/bottom
+// faces use screenUp=+Y so the labels read upright from outside.
 const FaceDef kFaces[6] =
 {
-    { "right",  { 1.0f, 0.0f, 0.0f}, { 1, 0, 0}, { 0, 0,-1}, { 0, 1, 0}, 1, 0 },
-    { "left",   {-1.0f, 0.0f, 0.0f}, {-1, 0, 0}, { 0, 0, 1}, { 0, 1, 0}, 0, 0 },
-    { "rear",   { 0.0f, 1.0f, 0.0f}, { 0, 1, 0}, { 1, 0, 0}, { 0, 0,-1}, 2, 0 },
+    { "right",  { 1.0f, 0.0f, 0.0f}, { 1, 0, 0}, { 0, 1, 0}, { 0, 0, 1}, 1, 0 },
+    { "left",   {-1.0f, 0.0f, 0.0f}, {-1, 0, 0}, { 0,-1, 0}, { 0, 0, 1}, 0, 0 },
+    { "rear",   { 0.0f, 1.0f, 0.0f}, { 0, 1, 0}, {-1, 0, 0}, { 0, 0, 1}, 2, 0 },
     { "front",  { 0.0f,-1.0f, 0.0f}, { 0,-1, 0}, { 1, 0, 0}, { 0, 0, 1}, 0, 1 },
     { "top",    { 0.0f, 0.0f, 1.0f}, { 0, 0, 1}, { 1, 0, 0}, { 0, 1, 0}, 1, 1 },
     { "bottom", { 0.0f, 0.0f,-1.0f}, { 0, 0,-1}, {-1, 0, 0}, { 0, 1, 0}, 2, 1 },
@@ -573,18 +575,19 @@ void NavigationCube::render(uint8_t view,
 
     bgfx::setViewTransform(view, viewMtx, projMtx);
 
-    // Orient the cube so it shows the same view of the world axes as the main
-    // camera.  The scene camera orbits with eye = {sin(yaw)cos(pitch),
-    // sin(pitch), -cos(yaw)cos(pitch)} = Ry(-yaw) * Rx(pitch) * (0,0,-1),
-    // i.e. pitch is applied *inside* the yaw rotation so the pitch axis
-    // rotates with yaw.  Applying the same order (Ry(-yaw) * Rx(pitch)) to
-    // the cube keeps the cube's pitch axis aligned with the scene's apparent
-    // pitch axis at every yaw, so vertical dragging never flips direction.
+    // Orient the cube so the face pointing toward the scene camera faces the
+    // nav-cube viewer.  yaw/pitch describe the camera offset direction
+    // (yaw = atan2(ox, -oz), pitch = atan2(oy, sqrt(ox^2+oz^2))).  The cube
+    // must rotate by the *inverse* of a camera-style orbit matrix, i.e.
+    // model = Ry(+yaw) * Rx(-pitch), which maps the camera-facing local axis
+    // onto -Z (toward the nav viewer at (0,0,-kCamDist)).
+    // Using Ry(-yaw)*Rx(+pitch) here instead would show the opposite side of
+    // the cube (e.g. the "left" face where "right" should appear).
     float ry[16];
     float rx[16];
     float model[16];
-    bx::mtxRotateY(ry, -yaw);
-    bx::mtxRotateX(rx,  pitch);
+    bx::mtxRotateY(ry,  yaw);
+    bx::mtxRotateX(rx, -pitch);
     bx::mtxMul(model, ry, rx);
 
     // 1) Solid chamfered cube (single color).
@@ -634,13 +637,13 @@ bool NavigationCube::hitTest(int mouseX, int mouseY,
     const bx::Vec3 rayOrigin = {nx * kOrthoHalf, ny * kOrthoHalf, -kCamDist};
     const bx::Vec3 rayDir    = {0.0f, 0.0f, 1.0f};
 
-    // Inverse cube rotation: model = Ry(-yaw) * Rx(+pitch), so
-    // R^-1 = Rx(-pitch) * Ry(+yaw).
+    // Inverse cube rotation: model = Ry(+yaw) * Rx(-pitch), so
+    // R^-1 = Rx(+pitch) * Ry(-yaw).
     float rxi[16];
     float ryi[16];
     float invRot[16];
-    bx::mtxRotateX(rxi, -m_pitch);
-    bx::mtxRotateY(ryi,  m_yaw);
+    bx::mtxRotateX(rxi,  m_pitch);
+    bx::mtxRotateY(ryi, -m_yaw);
     bx::mtxMul(invRot, rxi, ryi);
 
     auto transformDir = [&](const bx::Vec3& v) -> bx::Vec3
