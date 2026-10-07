@@ -99,6 +99,8 @@ QSize BgfxWindow::physicalSize() const
     );
 }
 
+static std::vector<ModelVertex> vertices(2000000);
+static std::vector<bx::Vec3> normals(2000000, { 0.0f, 0.0f, 0.0f });
 
 void BgfxWindow::drawModel()
 {
@@ -120,7 +122,7 @@ void BgfxWindow::drawModel()
             return;
 
         // Compute per-vertex normals by averaging face normals.
-        std::vector<bx::Vec3> normals(numVert, {0.0f, 0.0f, 0.0f});
+        
         for (uint32_t t = 0; t < numTri; ++t)
         {
             break;
@@ -168,7 +170,7 @@ void BgfxWindow::drawModel()
         SPDLOG_INFO("test 2");
         // Pack position (3 floats) + color (RGBA8); ModelVertex is defined in
         // the file-scope anonymous namespace.
-        std::vector<ModelVertex> vertices(numVert);
+        
         for (uint32_t i = 0; i < numVert; ++i)
         {
             const float* p = &mesh.vertProperties[i * mesh.numProp];
@@ -197,7 +199,7 @@ void BgfxWindow::drawModel()
             .end();
         SPDLOG_INFO("test 4");
         m_modelVbh = bgfx::createVertexBuffer(
-            bgfx::copy(vertices.data(), uint32_t(vertices.size() * sizeof(ModelVertex))),
+            bgfx::copy(vertices.data(), uint32_t(numVert * sizeof(ModelVertex))),
             m_modelLayout
         );
         SPDLOG_INFO("test 5");
