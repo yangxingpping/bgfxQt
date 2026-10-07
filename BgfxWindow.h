@@ -41,6 +41,7 @@ private:
     void renderFrame();
     QSize physicalSize() const;
 	void drawModel();
+    void drawModelWithTransient();
     void drawAxis3D();
     void drawLight();
 private:

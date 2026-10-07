@@ -218,6 +218,132 @@ void BgfxWindow::drawModel()
     bgfx::submit(0, m_program);
 }
 
+void BgfxWindow::drawModelWithTransient()
+{
+	WLOG_FUNCTION_TIMER();
+	if (m_manifold.IsEmpty())
+		return;
+
+	// Upload the manifold mesh to GPU buffers once (lazy).
+	if (!m_modelBuilt)
+	{
+		SPDLOG_INFO("test 0");
+		const manifold::MeshGL& mesh = m_mesh;
+
+		const uint32_t numVert = uint32_t(mesh.NumVert());
+		const uint32_t numTri = uint32_t(mesh.NumTri());
+		SPDLOG_INFO("Uploading manifold mesh to GPU: {} vertices, {} triangles.", numVert, numTri);
+
+		if (numVert == 0 || numTri == 0)
+			return;
+
+		// Compute per-vertex normals by averaging face normals.
+		std::vector<bx::Vec3> normals(numVert, { 0.0f, 0.0f, 0.0f });
+		for (uint32_t t = 0; t < numTri; ++t)
+		{
+			break;
+			const uint32_t i0 = mesh.triVerts[t * 3 + 0];
+			const uint32_t i1 = mesh.triVerts[t * 3 + 1];
+			const uint32_t i2 = mesh.triVerts[t * 3 + 2];
+
+			const float* p0 = &mesh.vertProperties[i0 * mesh.numProp];
+			const float* p1 = &mesh.vertProperties[i1 * mesh.numProp];
+			const float* p2 = &mesh.vertProperties[i2 * mesh.numProp];
+
+			const bx::Vec3 e1 = { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] };
+			const bx::Vec3 e2 = { p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2] };
+			bx::Vec3 n = bx::cross(e1, e2);
+			const float len2 = n.x * n.x + n.y * n.y + n.z * n.z;
+			if (len2 > 1e-12f)
+			{
+				const float invLen = 1.0f / bx::sqrt(len2);
+				n = { n.x * invLen, n.y * invLen, n.z * invLen };
+			}
+			else
+			{
+				n = { 0.0f, 1.0f, 0.0f };
+			}
+
+			normals[i0] = bx::add(normals[i0], n);
+			normals[i1] = bx::add(normals[i1], n);
+			normals[i2] = bx::add(normals[i2], n);
+		}
+		SPDLOG_INFO("test 1");
+		for (uint32_t i = 0; i < numVert; ++i)
+		{
+			bx::Vec3& n = normals[i];
+			const float len2 = n.x * n.x + n.y * n.y + n.z * n.z;
+			if (len2 > 1e-12f)
+			{
+				const float invLen = 1.0f / bx::sqrt(len2);
+				n = { n.x * invLen, n.y * invLen, n.z * invLen };
+			}
+			else
+			{
+				n = { 0.0f, 1.0f, 0.0f };
+			}
+		}
+		SPDLOG_INFO("test 2");
+		// Pack position (3 floats) + color (RGBA8) into a bgfx vertex buffer.
+		struct ModelVertex
+		{
+			float    x, y, z;
+			uint32_t abgr;
+		};
+
+		std::vector<ModelVertex> vertices(numVert);
+		for (uint32_t i = 0; i < numVert; ++i)
+		{
+			const float* p = &mesh.vertProperties[i * mesh.numProp];
+			const bx::Vec3& n = normals[i];
+
+			// Map normal direction to a color (n * 0.5 + 0.5) for a shaded look.
+			const uint8_t r = uint8_t(bx::clamp(n.x * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+			const uint8_t g = uint8_t(bx::clamp(n.y * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+			const uint8_t b = uint8_t(bx::clamp(n.z * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+			const uint8_t a = 255;
+
+			vertices[i].x = p[0];
+			vertices[i].y = p[1];
+			vertices[i].z = p[2];
+			vertices[i].abgr =
+				(uint32_t(a) << 24) |
+				(uint32_t(b) << 16) |
+				(uint32_t(g) << 8) |
+				uint32_t(r);
+		}
+		SPDLOG_INFO("test 3");
+		m_modelLayout
+			.begin()
+			.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+			.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+			.end();
+		SPDLOG_INFO("test 4");
+		m_modelVbh = bgfx::createVertexBuffer(
+			bgfx::copy(vertices.data(), uint32_t(vertices.size() * sizeof(ModelVertex))),
+			m_modelLayout
+		);
+		SPDLOG_INFO("test 5");
+		m_modelIbh = bgfx::createIndexBuffer(
+			bgfx::copy(mesh.triVerts.data(), uint32_t(mesh.triVerts.size() * sizeof(uint32_t))),
+			BGFX_BUFFER_INDEX32
+		);
+		SPDLOG_INFO("test 6");
+		m_modelIndexCount = numTri * 3;
+		m_modelBuilt = true;
+	}
+
+	float model[16];
+	bx::mtxIdentity(model);
+
+	bgfx::setTransform(model);
+	bgfx::setVertexBuffer(0, m_modelVbh);
+	bgfx::setIndexBuffer(m_modelIbh);
+	// Depth test + RGB write, no face culling so every face is drawn.
+	bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
+	bgfx::submit(0, m_program);
+}
+
 void BgfxWindow::drawAxis3D()
 {
     // Build the axis gizmo once: three colored axes (X red, Y green, Z blue),
@@ -671,7 +797,8 @@ void BgfxWindow::renderFrame()
 
     bgfx::touch(0);
 
-    drawModel();
+    //drawModel();
+    drawModelWithTransient();
     drawAxis3D();
     drawLight();
 
