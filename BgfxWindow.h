@@ -7,6 +7,9 @@
 #include <bx/math.h>
 #include <manifold/manifold.h>
 
+#include <cstdint>
+#include <vector>
+
 #include "NavigationCube.h"
 
 QT_BEGIN_NAMESPACE
@@ -63,6 +66,14 @@ private:
     bgfx::IndexBufferHandle  m_modelIbh = BGFX_INVALID_HANDLE;
     uint32_t                 m_modelIndexCount = 0;
     bool                     m_modelBuilt = false;
+
+    // Transient-buffer draw path: the packed mesh is cached on the CPU once
+    // and copied into bgfx's per-frame transient pools on every draw, so no
+    // persistent GPU buffers are created or destroyed.
+    std::vector<uint8_t>     m_transientVertexData;   // packed ModelVertex bytes
+    std::vector<uint32_t>    m_transientIndexData;    // 32-bit indices
+    uint32_t                 m_transientVertexCount = 0;
+    bool                     m_transientBuilt = false;
 
     // 3D axis gizmo (XYZ) drawn at the orbit target.
     bgfx::VertexLayout       m_axisLayout;

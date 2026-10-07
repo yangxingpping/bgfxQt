@@ -37,6 +37,14 @@ struct PosColorVertex
     uint32_t abgr; // RGBA8, little-endian byte order R, G, B, A
 };
 
+// Packed model vertex for the transient-buffer draw path:
+// position (3 floats) + normal-mapped color (RGBA8).
+struct ModelVertex
+{
+    float    x, y, z;
+    uint32_t abgr;
+};
+
 static const PosColorVertex s_cubeVertices[] =
 {
     {-1.0f,  1.0f,  1.0f, 0xff000000},
@@ -158,13 +166,8 @@ void BgfxWindow::drawModel()
             }
         }
         SPDLOG_INFO("test 2");
-        // Pack position (3 floats) + color (RGBA8) into a bgfx vertex buffer.
-        struct ModelVertex
-        {
-            float    x, y, z;
-            uint32_t abgr;
-        };
-
+        // Pack position (3 floats) + color (RGBA8); ModelVertex is defined in
+        // the file-scope anonymous namespace.
         std::vector<ModelVertex> vertices(numVert);
         for (uint32_t i = 0; i < numVert; ++i)
         {
@@ -224,8 +227,9 @@ void BgfxWindow::drawModelWithTransient()
 	if (m_manifold.IsEmpty())
 		return;
 
-	// Upload the manifold mesh to GPU buffers once (lazy).
-	if (!m_modelBuilt)
+	// Pack the manifold mesh into a CPU-side cache once (lazy). The cache is
+	// then copied into bgfx's transient buffers on every frame below.
+	if (!m_transientBuilt)
 	{
 		SPDLOG_INFO("test 0");
 		const manifold::MeshGL& mesh = m_mesh;
@@ -284,12 +288,8 @@ void BgfxWindow::drawModelWithTransient()
 			}
 		}
 		SPDLOG_INFO("test 2");
-		// Pack position (3 floats) + color (RGBA8) into a bgfx vertex buffer.
-		struct ModelVertex
-		{
-			float    x, y, z;
-			uint32_t abgr;
-		};
+		// Pack position (3 floats) + color (RGBA8); ModelVertex is defined in
+		// the file-scope anonymous namespace.
 
 		std::vector<ModelVertex> vertices(numVert);
 		for (uint32_t i = 0; i < numVert; ++i)
@@ -319,26 +319,47 @@ void BgfxWindow::drawModelWithTransient()
 			.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
 			.end();
 		SPDLOG_INFO("test 4");
-		m_modelVbh = bgfx::createVertexBuffer(
-			bgfx::copy(vertices.data(), uint32_t(vertices.size() * sizeof(ModelVertex))),
-			m_modelLayout
-		);
-		SPDLOG_INFO("test 5");
-		m_modelIbh = bgfx::createIndexBuffer(
-			bgfx::copy(mesh.triVerts.data(), uint32_t(mesh.triVerts.size() * sizeof(uint32_t))),
-			BGFX_BUFFER_INDEX32
-		);
+		// Transient buffers are per-frame scratch memory, so the packed mesh
+		// is cached on the CPU here (once) and copied into the transient pool
+		// every frame below. No persistent GPU buffers are created.
+		m_transientVertexData.assign(
+			reinterpret_cast<const uint8_t*>(vertices.data()),
+			reinterpret_cast<const uint8_t*>(vertices.data()) + vertices.size() * sizeof(ModelVertex));
+		m_transientIndexData.assign(mesh.triVerts.begin(), mesh.triVerts.end());
+		m_transientVertexCount = numVert;
 		SPDLOG_INFO("test 6");
-		m_modelIndexCount = numTri * 3;
-		m_modelBuilt = true;
+		m_transientBuilt = true;
 	}
+
+	if (m_transientVertexCount == 0 || m_transientIndexData.empty())
+		return;
+
+	const uint32_t vertCount = m_transientVertexCount;
+	const uint32_t idxCount  = uint32_t(m_transientIndexData.size());
+
+	// Every frame: reserve scratch space from bgfx's transient pools and copy
+	// the cached mesh into it. The allocations are only valid until the next
+	// bgfx::frame() call. Returns false when the pool lacks space this frame.
+	bgfx::TransientVertexBuffer tvb;
+	bgfx::TransientIndexBuffer  tib;
+	if (!bgfx::allocTransientBuffers(
+			&tvb, m_modelLayout, vertCount,
+			&tib, idxCount, /*_index32*/ true))
+	{
+		SPDLOG_WARN("Transient buffer pool exhausted ({} verts, {} indices); skipping model draw this frame.",
+					vertCount, idxCount);
+		return;
+	}
+
+	bx::memCopy(tvb.data, m_transientVertexData.data(), vertCount * sizeof(ModelVertex));
+	bx::memCopy(tib.data, m_transientIndexData.data(), idxCount * sizeof(uint32_t));
 
 	float model[16];
 	bx::mtxIdentity(model);
 
 	bgfx::setTransform(model);
-	bgfx::setVertexBuffer(0, m_modelVbh);
-	bgfx::setIndexBuffer(m_modelIbh);
+	bgfx::setVertexBuffer(0, &tvb);
+	bgfx::setIndexBuffer(&tib);
 	// Depth test + RGB write, no face culling so every face is drawn.
 	bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
 	bgfx::submit(0, m_program);
@@ -797,8 +818,8 @@ void BgfxWindow::renderFrame()
 
     bgfx::touch(0);
 
-    //drawModel();
-    drawModelWithTransient();
+    drawModel();
+    //drawModelWithTransient();
     drawAxis3D();
     drawLight();
 
