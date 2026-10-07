@@ -104,6 +104,7 @@ void BgfxWindow::drawModel()
         const manifold::MeshGL mesh = m_manifold.GetMeshGL();
         const uint32_t numVert = uint32_t(mesh.NumVert());
         const uint32_t numTri  = uint32_t(mesh.NumTri());
+		SPDLOG_INFO("Uploading manifold mesh to GPU: {} vertices, {} triangles.", numVert, numTri);
 
         if (numVert == 0 || numTri == 0)
             return;
