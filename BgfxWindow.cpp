@@ -115,6 +115,7 @@ void BgfxWindow::drawModel()
         std::vector<bx::Vec3> normals(numVert, {0.0f, 0.0f, 0.0f});
         for (uint32_t t = 0; t < numTri; ++t)
         {
+            break;
             const uint32_t i0 = mesh.triVerts[t * 3 + 0];
             const uint32_t i1 = mesh.triVerts[t * 3 + 1];
             const uint32_t i2 = mesh.triVerts[t * 3 + 2];
@@ -511,7 +512,7 @@ bool BgfxWindow::initBgfx()
     m_manifold = manifold::Manifold::Cube(manifold::vec3(1.0f, 1.0f, 1.0f));
     m_manifold = manifold::Manifold(MachineCut::TestCut());
 	//m_manifold = manifold::Manifold(MachineCut::LoadMesh("stl.stl"));
-    m_mesh = MachineCut::LoadMesh("stl.stl");
+    m_mesh = MachineCut::LoadMesh("dd.stl");
 
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, &BgfxWindow::renderFrame);
