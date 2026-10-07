@@ -90,25 +90,18 @@ void MachineCut::ManifoldTest()
 			Manifold tool = Manifold::Cube(vec3(0.1f, 0.1f, 0.1f), false).Translate(vec3(-5.0 + j * 0.1, 0.95, z));
 			carvingTools.push_back(tool);
 		}
-		if (j % 4 == 0) {
-			Manifold toolCombine;
-			manifold_tool_combine(carvingTools, toolCombine);
-
-			terrain -= toolCombine;
-			terrain.Simplify(0.1);
-			carvingTools.clear();
-		}
-	}
-
-	{
 		Manifold toolCombine;
 		manifold_tool_combine(carvingTools, toolCombine);
 
 		terrain -= toolCombine;
-		terrain.Simplify(0.01);
-		carvingTools.clear();
+		terrain.Simplify(0.1);
 
+
+		carvingTools.clear();
+		
 	}
+
+
 
 	MeshGL resultMesh = terrain.GetMeshGL();
 	spdlog::info("Resulting mesh has {} triangles.", resultMesh.NumTri());
