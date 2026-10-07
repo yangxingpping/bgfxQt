@@ -101,7 +101,9 @@ void BgfxWindow::drawModel()
     // Upload the manifold mesh to GPU buffers once (lazy).
     if (!m_modelBuilt)
     {
-        const manifold::MeshGL mesh = m_manifold.GetMeshGL();
+        SPDLOG_INFO("test 0");
+        const manifold::MeshGL& mesh = m_mesh;
+        
         const uint32_t numVert = uint32_t(mesh.NumVert());
         const uint32_t numTri  = uint32_t(mesh.NumTri());
 		SPDLOG_INFO("Uploading manifold mesh to GPU: {} vertices, {} triangles.", numVert, numTri);
@@ -139,6 +141,7 @@ void BgfxWindow::drawModel()
             normals[i1] = bx::add(normals[i1], n);
             normals[i2] = bx::add(normals[i2], n);
         }
+        SPDLOG_INFO("test 1");
         for (uint32_t i = 0; i < numVert; ++i)
         {
             bx::Vec3& n = normals[i];
@@ -153,7 +156,7 @@ void BgfxWindow::drawModel()
                 n = {0.0f, 1.0f, 0.0f};
             }
         }
-
+        SPDLOG_INFO("test 2");
         // Pack position (3 floats) + color (RGBA8) into a bgfx vertex buffer.
         struct ModelVertex
         {
@@ -182,23 +185,23 @@ void BgfxWindow::drawModel()
                 (uint32_t(g) << 8)  |
                  uint32_t(r);
         }
-
+        SPDLOG_INFO("test 3");
         m_modelLayout
             .begin()
             .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
             .add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
             .end();
-
+        SPDLOG_INFO("test 4");
         m_modelVbh = bgfx::createVertexBuffer(
             bgfx::copy(vertices.data(), uint32_t(vertices.size() * sizeof(ModelVertex))),
             m_modelLayout
         );
-
+        SPDLOG_INFO("test 5");
         m_modelIbh = bgfx::createIndexBuffer(
             bgfx::copy(mesh.triVerts.data(), uint32_t(mesh.triVerts.size() * sizeof(uint32_t))),
             BGFX_BUFFER_INDEX32
         );
-
+        SPDLOG_INFO("test 6");
         m_modelIndexCount = numTri * 3;
         m_modelBuilt = true;
     }
@@ -507,7 +510,8 @@ bool BgfxWindow::initBgfx()
 	//m_manifold = manifold::Manifold::Sphere(1.0f);
     m_manifold = manifold::Manifold::Cube(manifold::vec3(1.0f, 1.0f, 1.0f));
     m_manifold = manifold::Manifold(MachineCut::TestCut());
-	m_manifold = manifold::Manifold(MachineCut::LoadMesh("stl.stl"));
+	//m_manifold = manifold::Manifold(MachineCut::LoadMesh("stl.stl"));
+    m_mesh = MachineCut::LoadMesh("stl.stl");
 
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, &BgfxWindow::renderFrame);

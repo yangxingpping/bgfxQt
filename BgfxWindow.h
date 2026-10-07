@@ -88,6 +88,7 @@ private:
     float m_cameraPitch    = 0.0f;   // radians
 
 	manifold::Manifold m_manifold;
+	manifold::MeshGL m_mesh;
 
     NavigationCube m_navCube;
 };
