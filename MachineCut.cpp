@@ -84,7 +84,7 @@ void MachineCut::ManifoldTest()
 	vector<Manifold> carvingTools;
 	double unit_size = 10.0 / 1000;
 
-	for (int j = 0; j < 50; ++j) {
+	for (int j = 0; j < 100; ++j) {
 
 		for (int i = 0; i < 1000; ++i) {
 			float x = 5.0f;
@@ -97,10 +97,14 @@ void MachineCut::ManifoldTest()
 
 		// Diff: collect vertex positions before the subtraction.
 		const MeshGL meshBefore = terrain.GetMeshGL();
+		std::vector<std::tuple<float, float, float>> vertsBeforev;
 		std::set<std::tuple<float, float, float>> vertsBefore;
+
+
 		for (uint32_t v = 0; v < meshBefore.NumVert(); ++v)
 		{
 			const float* p = &meshBefore.vertProperties[v * meshBefore.numProp];
+			vertsBeforev.emplace_back(p[0], p[1], p[2]);
 			vertsBefore.emplace(p[0], p[1], p[2]);
 		}
 
@@ -110,10 +114,30 @@ void MachineCut::ManifoldTest()
 		// Diff: collect vertex positions after the subtraction and classify.
 		const MeshGL meshAfter = terrain.GetMeshGL();
 		std::set<std::tuple<float, float, float>> vertsAfter;
+		std::vector<std::tuple<float, float, float>> vertsAfterv;
 		for (uint32_t v = 0; v < meshAfter.NumVert(); ++v)
 		{
 			const float* p = &meshAfter.vertProperties[v * meshAfter.numProp];
 			vertsAfter.emplace(p[0], p[1], p[2]);
+			vertsAfterv.emplace_back(p[0], p[1], p[2]);
+		}
+
+		for (int i = 0; i < vertsBeforev.size(); ++i)
+		{
+			if (i < vertsAfterv.size()) {
+				auto& before = *std::next(vertsBeforev.begin(), i);
+				auto& after = *std::next(vertsAfterv.begin(), i);
+				if (before != after) {
+					spdlog::info("[ManifoldTest] pass {}: vertex {} changed from ({:.3f}, {:.3f}, {:.3f}) to ({:.3f}, {:.3f}, {:.3f})",
+						j, i,
+						std::get<0>(before), std::get<1>(before), std::get<2>(before),
+						std::get<0>(after), std::get<1>(after), std::get<2>(after));
+					break;
+				}
+			}
+			else {
+				break;
+			}
 		}
 
 		std::vector<std::tuple<float, float, float>> removedVerts;
