@@ -722,7 +722,7 @@ bool BgfxWindow::initCube()
     );
 
     m_cubeInitialized = true;
-
+    MachineCut::ManifoldTest();
     return true;
 }
 
