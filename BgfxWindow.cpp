@@ -506,6 +506,7 @@ bool BgfxWindow::initBgfx()
 	//m_manifold = manifold::Manifold::Sphere(1.0f);
     m_manifold = manifold::Manifold::Cube(manifold::vec3(1.0f, 1.0f, 1.0f));
     m_manifold = manifold::Manifold(MachineCut::TestCut());
+	m_manifold = manifold::Manifold(MachineCut::LoadMesh("stl.stl"));
 
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, &BgfxWindow::renderFrame);

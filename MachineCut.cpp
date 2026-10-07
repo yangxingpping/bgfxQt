@@ -1,5 +1,6 @@
 
 #include "machinecut.h"
+#include "meshIO.h"
 #include "wlog.h"
 #include <vector>
 using std::vector;
@@ -24,7 +25,7 @@ manifold::MeshGL MachineCut::TestCut()
 	vector<Manifold> carvingTools;
 	double unit_size = 10.0 / 1000;
 
-	for (int j = 0; j < 1; ++j) {
+	for (int j = 0; j < 0; ++j) {
 
 		for (int i = 0; i < 1000; ++i) {
 			float x = 5.0f;
@@ -64,4 +65,10 @@ manifold::MeshGL MachineCut::TestCut()
 		spdlog::error("Error during boolean operations.");
 	}
 	return resultMesh;
+}
+
+manifold::MeshGL MachineCut::LoadMesh(const string& filename)
+{
+	manifold::Manifold mesh = manifold::ImportMesh(filename);
+	return mesh.GetMeshGL();
 }
