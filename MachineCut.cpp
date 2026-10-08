@@ -117,15 +117,16 @@ void MachineCut::ManifoldTest()
 	spdlog::flush_on(spdlog::level::info);
 	Manifold terrain = Manifold::Cube(vec3(10.0, 2.0, 10.0), true);
 	
-	double unit_size = 10.0 / 400;
+	double unit_size = 10.0 / 1000;
 	unique_ptr<BufferFrame> newFrame = nullptr;
 	manifold::MeshGL mesh;
-	for (int k = 0; k < 8; ++k)
+	for (int k = 0; k < 10; ++k)
 	{
-		spdlog::info("Cutting layer {}", k);
+		WLOG_FUNCTION_TIMER();
+		//spdlog::info("Cutting layer {}", k);
 		for (int j = 0; j < 100; ++j) {
 
-			for (int i = 0; i < 400; ++i) {
+			for (int i = 0; i < 1000; ++i) {
 				float x = 5.0f;
 				float z = -5.0f + i * unit_size;
 				Manifold tool = Manifold::Cube(vec3(0.3f, 0.3f, 0.3f), false).Translate(vec3(-5.0 + j * 0.1, 1 - (k+1)*0.15, z));
@@ -163,7 +164,7 @@ void MachineCut::ManifoldTest()
 			}
 
 		}
-		spdlog::info("end Cutting layer {}", k);
+		//spdlog::info("end Cutting layer {}", k);
 		
 	}
 }
