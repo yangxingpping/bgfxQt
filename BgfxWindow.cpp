@@ -140,6 +140,8 @@ void BgfxWindow::drawModelFPS()
 	// Depth test + RGB write, no face culling so every face is drawn.
 	bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
 	bgfx::submit(0, m_program);
+
+    m_bufferFrame = std::move(renderFrame);
 }
 
 static std::vector<ModelVertexZ> vertices(2000000);
