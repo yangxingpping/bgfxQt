@@ -10,6 +10,7 @@
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
 #include <bx/math.h>
+#include <taskflow/taskflow.hpp>
 
 #include "WLog.h"
 #include "MachineCut.h"
@@ -25,6 +26,9 @@
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
+
+tf::Taskflow g_taskflow;
+tf::Executor g_executor;
 
 namespace
 {
@@ -659,6 +663,9 @@ bool BgfxWindow::initBgfx()
     // Sample manifold model rendered by drawModel().
 	//m_manifold = manifold::Manifold::Sphere(1.0f);
     m_manifold = manifold::Manifold::Cube(manifold::vec3(1.0f, 1.0f, 1.0f));
+
+
+
     m_manifold = manifold::Manifold(MachineCut::TestCut());
 	//m_manifold = manifold::Manifold(MachineCut::LoadMesh("stl.stl"));
     m_mesh = MachineCut::LoadMesh("dd.stl");
@@ -722,7 +729,9 @@ bool BgfxWindow::initCube()
     );
 
     m_cubeInitialized = true;
-    MachineCut::ManifoldTest();
+    g_executor.async([this]() {
+        MachineCut::ManifoldTest();
+        });
     return true;
 }
 

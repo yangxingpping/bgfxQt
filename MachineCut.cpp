@@ -2,12 +2,16 @@
 #include "machinecut.h"
 #include "meshIO.h"
 #include "wlog.h"
+
+
 #include <set>
 #include <fstream>
 #include <tuple>
 #include <vector>
 using std::vector;
 using namespace manifold;
+
+
 
 void manifold_tool_combine(std::vector<Manifold>& tools, Manifold& result) {
 	WLOG_FUNCTION_TIMER();
@@ -116,15 +120,15 @@ void MachineCut::ManifoldTest()
 			float x = 5.0f;
 			float z = -5.0f + i * unit_size;
 			Manifold tool = Manifold::Cube(vec3(0.1f, 0.1f, 0.1f), false).Translate(vec3(-5.0 + j * 0.1, 0.95, z));
-			carvingTools.push_back(tool);
+			terrain -= tool;
+			if (j % 50 == 0) {
+				terrain = terrain.AsOriginal();
+				terrain.Simplify(0.05);
+			}
 		}
-		Manifold toolCombine;
-		manifold_tool_combine(carvingTools, toolCombine);
-
-		terrain -= toolCombine;
 		
-		terrain = terrain.AsOriginal();
-		terrain.Simplify(0.1);
+		
+		
 		
 		// Diff: collect vertex positions before the subtraction.
 
