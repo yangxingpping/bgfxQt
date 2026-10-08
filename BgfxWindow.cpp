@@ -696,7 +696,7 @@ bool BgfxWindow::initBgfx()
         return false;
 
     // Navigation cube shares the same position+color shader as the cube.
-    m_navCube.init(m_program);
+    //m_navCube.init(m_program);
 
     // Sample manifold model rendered by drawModel().
 	//m_manifold = manifold::Manifold::Sphere(1.0f);
@@ -704,9 +704,9 @@ bool BgfxWindow::initBgfx()
 
 
 
-    m_manifold = manifold::Manifold(MachineCut::TestCut());
+   // m_manifold = manifold::Manifold(MachineCut::TestCut());
 	//m_manifold = manifold::Manifold(MachineCut::LoadMesh("stl.stl"));
-    m_mesh = MachineCut::LoadMesh("dd.stl");
+    //m_mesh = MachineCut::LoadMesh("dd.stl");
 
     m_renderTimer = new QTimer(this);
     connect(m_renderTimer, &QTimer::timeout, this, &BgfxWindow::renderFrame);
@@ -895,73 +895,73 @@ void BgfxWindow::mousePressEvent(QMouseEvent* event)
     {
         int face = -1;
         const QSize fb = physicalSize();
-        if (m_navCube.hitTest(px, py, uint16_t(fb.width()), uint16_t(fb.height()), face))
-        {
-            // Snap the camera to look along the clicked face's direction.
-            // Face 0-5: main faces (+X, -X, +Y, -Y, +Z, -Z)
-            // Face 6-13: corner chamfers (8 corners at (±1, ±1, ±1))
-            // Face 14-25: edge chamfers (12 edges)
-            if (face >= 0 && face <= 5)
-            {
-                // Main faces.  eye offset = (sin(yaw)cos(pitch), sin(pitch),
-                // -cos(yaw)cos(pitch)) * d; to look AT a face the camera must
-                // be placed on that face's side, e.g. clicking +X puts the
-                // camera at +X (yaw = +pi/2), not the opposite side.
-                switch (face)
-                {
-                    case 0: m_cameraYaw =  bx::kPi * 0.5f; m_cameraPitch = 0.0f; break; // +X (right)
-                    case 1: m_cameraYaw = -bx::kPi * 0.5f; m_cameraPitch = 0.0f; break; // -X (left)
-                    case 2: m_cameraYaw = 0.0f;            m_cameraPitch =  bx::kPi * 0.5f; break; // +Y (rear)
-                    case 3: m_cameraYaw = 0.0f;            m_cameraPitch = -bx::kPi * 0.5f; break; // -Y (front)
-                    case 4: m_cameraYaw = bx::kPi;         m_cameraPitch = 0.0f; break; // +Z (top)
-                    case 5: m_cameraYaw = 0.0f;            m_cameraPitch = 0.0f; break; // -Z (bottom)
-                }
-            }
-            else if (face >= 6 && face <= 13)
-            {
-                // Corner chamfers: decode corner index to direction.
-                // cornerIdx: bit 0 = sx (+1 if set), bit 1 = sy, bit 2 = sz.
-                const int cornerIdx = face - 6;
-                const float sx = (cornerIdx & 1) ? 1.0f : -1.0f;
-                const float sy = (cornerIdx & 2) ? 1.0f : -1.0f;
-                const float sz = (cornerIdx & 4) ? 1.0f : -1.0f;
-                // Camera looks from corner toward center: direction is (-sx, -sy, -sz).
-                // yaw = atan2(-dx, dz) where (dx,dy,dz) = (-sx,-sy,-sz), so yaw = atan2(sx, -sz).
-                m_cameraYaw = std::atan2(sx, -sz);
-                m_cameraPitch = std::atan2(sy, std::sqrt(sx * sx + sz * sz));
-            }
-            else if (face >= 14 && face <= 25)
-            {
-                // Edge chamfers: decode edge index to direction.
-                const int edgeIdx = face - 14;
-                float sx = 0.0f, sy = 0.0f, sz = 0.0f;
-                if (edgeIdx < 4)
-                {
-                    // Edges parallel to Z at (±1, ±1, *).
-                    sx = (edgeIdx & 1) ? 1.0f : -1.0f;
-                    sy = (edgeIdx & 2) ? 1.0f : -1.0f;
-                }
-                else if (edgeIdx < 8)
-                {
-                    // Edges parallel to Y at (±1, *, ±1).
-                    const int e = edgeIdx - 4;
-                    sx = (e & 1) ? 1.0f : -1.0f;
-                    sz = (e & 2) ? 1.0f : -1.0f;
-                }
-                else
-                {
-                    // Edges parallel to X at (*, ±1, ±1).
-                    const int e = edgeIdx - 8;
-                    sy = (e & 1) ? 1.0f : -1.0f;
-                    sz = (e & 2) ? 1.0f : -1.0f;
-                }
-                // Camera looks from edge toward center: direction is (-sx, -sy, -sz).
-                // yaw = atan2(sx, -sz), pitch = atan2(sy, sqrt(sx² + sz²)).
-                m_cameraYaw = std::atan2(sx, -sz);
-                m_cameraPitch = std::atan2(sy, std::sqrt(sx * sx + sz * sz));
-            }
-            return;
-        }
+        //if (m_navCube.hitTest(px, py, uint16_t(fb.width()), uint16_t(fb.height()), face))
+        //{
+        //    // Snap the camera to look along the clicked face's direction.
+        //    // Face 0-5: main faces (+X, -X, +Y, -Y, +Z, -Z)
+        //    // Face 6-13: corner chamfers (8 corners at (±1, ±1, ±1))
+        //    // Face 14-25: edge chamfers (12 edges)
+        //    if (face >= 0 && face <= 5)
+        //    {
+        //        // Main faces.  eye offset = (sin(yaw)cos(pitch), sin(pitch),
+        //        // -cos(yaw)cos(pitch)) * d; to look AT a face the camera must
+        //        // be placed on that face's side, e.g. clicking +X puts the
+        //        // camera at +X (yaw = +pi/2), not the opposite side.
+        //        switch (face)
+        //        {
+        //            case 0: m_cameraYaw =  bx::kPi * 0.5f; m_cameraPitch = 0.0f; break; // +X (right)
+        //            case 1: m_cameraYaw = -bx::kPi * 0.5f; m_cameraPitch = 0.0f; break; // -X (left)
+        //            case 2: m_cameraYaw = 0.0f;            m_cameraPitch =  bx::kPi * 0.5f; break; // +Y (rear)
+        //            case 3: m_cameraYaw = 0.0f;            m_cameraPitch = -bx::kPi * 0.5f; break; // -Y (front)
+        //            case 4: m_cameraYaw = bx::kPi;         m_cameraPitch = 0.0f; break; // +Z (top)
+        //            case 5: m_cameraYaw = 0.0f;            m_cameraPitch = 0.0f; break; // -Z (bottom)
+        //        }
+        //    }
+        //    else if (face >= 6 && face <= 13)
+        //    {
+        //        // Corner chamfers: decode corner index to direction.
+        //        // cornerIdx: bit 0 = sx (+1 if set), bit 1 = sy, bit 2 = sz.
+        //        const int cornerIdx = face - 6;
+        //        const float sx = (cornerIdx & 1) ? 1.0f : -1.0f;
+        //        const float sy = (cornerIdx & 2) ? 1.0f : -1.0f;
+        //        const float sz = (cornerIdx & 4) ? 1.0f : -1.0f;
+        //        // Camera looks from corner toward center: direction is (-sx, -sy, -sz).
+        //        // yaw = atan2(-dx, dz) where (dx,dy,dz) = (-sx,-sy,-sz), so yaw = atan2(sx, -sz).
+        //        m_cameraYaw = std::atan2(sx, -sz);
+        //        m_cameraPitch = std::atan2(sy, std::sqrt(sx * sx + sz * sz));
+        //    }
+        //    else if (face >= 14 && face <= 25)
+        //    {
+        //        // Edge chamfers: decode edge index to direction.
+        //        const int edgeIdx = face - 14;
+        //        float sx = 0.0f, sy = 0.0f, sz = 0.0f;
+        //        if (edgeIdx < 4)
+        //        {
+        //            // Edges parallel to Z at (±1, ±1, *).
+        //            sx = (edgeIdx & 1) ? 1.0f : -1.0f;
+        //            sy = (edgeIdx & 2) ? 1.0f : -1.0f;
+        //        }
+        //        else if (edgeIdx < 8)
+        //        {
+        //            // Edges parallel to Y at (±1, *, ±1).
+        //            const int e = edgeIdx - 4;
+        //            sx = (e & 1) ? 1.0f : -1.0f;
+        //            sz = (e & 2) ? 1.0f : -1.0f;
+        //        }
+        //        else
+        //        {
+        //            // Edges parallel to X at (*, ±1, ±1).
+        //            const int e = edgeIdx - 8;
+        //            sy = (e & 1) ? 1.0f : -1.0f;
+        //            sz = (e & 2) ? 1.0f : -1.0f;
+        //        }
+        //        // Camera looks from edge toward center: direction is (-sx, -sy, -sz).
+        //        // yaw = atan2(sx, -sz), pitch = atan2(sy, sqrt(sx² + sz²)).
+        //        m_cameraYaw = std::atan2(sx, -sz);
+        //        m_cameraPitch = std::atan2(sy, std::sqrt(sx * sx + sz * sz));
+        //    }
+        //    return;
+        //}
 
         m_leftDragging  = true;
         m_lastMousePos  = pos;
@@ -1070,7 +1070,7 @@ void BgfxWindow::shutdownBgfx()
     }
 
     destroyCube();
-    m_navCube.destroy();
+    //m_navCube.destroy();
 
     if (bgfx::isValid(m_modelVbh)) bgfx::destroy(m_modelVbh);
     if (bgfx::isValid(m_modelIbh)) bgfx::destroy(m_modelIbh);

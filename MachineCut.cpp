@@ -113,11 +113,12 @@ void WriteOBJ(const std::string& filename, const MeshGL& mesh) {
 
 void MachineCut::ManifoldTest()
 {
-	WLOG_FUNCTION_TIMER();
+	//WLOG_FUNCTION_TIMER();
 
 	Manifold terrain = Manifold::Cube(vec3(10.0, 2.0, 10.0), true);
 	
 	double unit_size = 10.0 / 1000;
+
 
 	for (int j = 0; j < 100; ++j) {
 
@@ -125,7 +126,7 @@ void MachineCut::ManifoldTest()
 			float x = 5.0f;
 			float z = -5.0f + i * unit_size;
 			Manifold tool = Manifold::Cube(vec3(0.1f, 0.1f, 0.1f), false).Translate(vec3(-5.0 + j * 0.1, 0.95, z));
-			terrain -= tool;
+			//terrain -= tool;
 			terrain = terrain.AsOriginal();
 			terrain.Simplify(0.05);
 			/*if (j % 50 == 0) {
