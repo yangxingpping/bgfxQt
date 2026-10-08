@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <future>
 
 #include "BufferManager.h"
 #include "NavigationCube.h"
@@ -106,4 +107,6 @@ private:
 
     NavigationCube m_navCube;
 	unique_ptr<BufferFrame> m_bufferFrame;
+
+    std::future<void> ret_exec;
 };

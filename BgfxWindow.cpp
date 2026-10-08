@@ -767,7 +767,7 @@ bool BgfxWindow::initCube()
     );
 
     m_cubeInitialized = true;
-    g_executor.async([this]() {
+    ret_exec = g_executor.async([this]() {
         MachineCut::ManifoldTest();
         });
     return true;

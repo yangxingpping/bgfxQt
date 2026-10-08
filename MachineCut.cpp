@@ -133,14 +133,17 @@ void MachineCut::ManifoldTest()
 				
 				
 			}*/
-			const manifold::MeshGL mesh = terrain.GetMeshGL();
-			auto newFrame = make_unique<BufferFrame>();
+			return;
+			manifold::MeshGL mesh = terrain.GetMeshGL();
+			
 
-			const uint32_t numVert = uint32_t(mesh.NumVert());
-			const uint32_t numTri = uint32_t(mesh.NumTri());
+			 uint32_t numVert = uint32_t(mesh.NumVert());
+			 uint32_t numTri = uint32_t(mesh.NumTri());
 
 			if (numVert == 0 || numTri == 0)
 				return;
+			auto newFrame = make_unique<BufferFrame>();
+
 			newFrame->vertices.resize(numVert);
 
 			for (uint32_t i = 0; i < numVert; ++i)
