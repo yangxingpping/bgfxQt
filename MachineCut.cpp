@@ -117,21 +117,22 @@ void MachineCut::ManifoldTest()
 
 	Manifold terrain = Manifold::Cube(vec3(10.0, 2.0, 10.0), true);
 	
-	double unit_size = 10.0 / 1000;
+	double unit_size = 10.0 / 200;
 
 
 	for (int j = 0; j < 100; ++j) {
 
-		for (int i = 0; i < 1000; ++i) {
+		for (int i = 0; i < 200; ++i) {
 			float x = 5.0f;
 			float z = -5.0f + i * unit_size;
 			Manifold tool = Manifold::Cube(vec3(0.1f, 0.1f, 0.1f), false).Translate(vec3(-5.0 + j * 0.1, 0.95, z));
 			terrain -= tool;
-			terrain = terrain.AsOriginal();
-			terrain.Simplify(0.05);
+			if (j % 100 == 0) {
+				terrain = terrain.AsOriginal();
+				terrain.Simplify(0.05);
+			}
 			manifold::MeshGL mesh = terrain.GetMeshGL();
 			
-
 			 uint32_t numVert = uint32_t(mesh.NumVert());
 			 uint32_t numTri = uint32_t(mesh.NumTri());
 			 //spdlog::info("Uploading manifold mesh to GPU: {} vertices, {} triangles.", numVert, numTri);
@@ -148,7 +149,7 @@ void MachineCut::ManifoldTest()
 				newFrame->vertices[i].x = p[0];
 				newFrame->vertices[i].y = p[1];
 				newFrame->vertices[i].z = p[2];
-				newFrame->vertices[i].abgr = 0xffffff00;
+				newFrame->vertices[i].abgr = 0xffd3d3d3;
 			}
 			auto& indexs = mesh.triVerts;
 			newFrame->indices.assign(indexs.begin(), indexs.end());
