@@ -27,10 +27,13 @@ unique_ptr<BufferFrame> BufferManager::getFrame()
 	return std::move(ret);
 }
 
-void BufferManager::putFrame(unique_ptr<BufferFrame> frame)
+unique_ptr<BufferFrame> BufferManager::putFrame(unique_ptr<BufferFrame> frame)
 {
+	unique_ptr<BufferFrame> ret;
 	lock_guard<mutex> lock(s_bufferFrameMutex);
+	ret = std::move(s_bufferFrame);
 	s_bufferFrame = std::move(frame);
 	//sBufferPool.enqueue(std::move(frame));
+	return std::move(ret);
 }
 

@@ -118,7 +118,7 @@ void MachineCut::ManifoldTest()
 	Manifold terrain = Manifold::Cube(vec3(10.0, 2.0, 10.0), true);
 	
 	double unit_size = 10.0 / 100;
-
+	unique_ptr<BufferFrame> newFrame = nullptr;
 
 	for (int j = 0; j < 100; ++j) {
 
@@ -127,9 +127,10 @@ void MachineCut::ManifoldTest()
 			float z = -5.0f + i * unit_size;
 			Manifold tool = Manifold::Cube(vec3(0.3f, 0.3f, 0.3f), false).Translate(vec3(-5.0 + j * 0.1, 0.85, z));
 			terrain -= tool;
-			if (j % 100 == 0) {
+			if (j % 2 == 0) 
+			{
 				terrain = terrain.AsOriginal();
-				terrain.Simplify(0.05);
+				terrain.Simplify(0.1);
 			}
 			manifold::MeshGL mesh = terrain.GetMeshGL();
 			
@@ -138,8 +139,10 @@ void MachineCut::ManifoldTest()
 			 //spdlog::info("Uploading manifold mesh to GPU: {} vertices, {} triangles.", numVert, numTri);
 			if (numVert == 0 || numTri == 0)
 				return;
-			auto newFrame = make_unique<BufferFrame>();
-
+			if (newFrame == nullptr)
+			{
+				newFrame = make_unique<BufferFrame>();
+			}
 			newFrame->vertices.resize(numVert);
 
 			for (uint32_t i = 0; i < numVert; ++i)
@@ -153,8 +156,8 @@ void MachineCut::ManifoldTest()
 			}
 			auto& indexs = mesh.triVerts;
 			newFrame->indices.assign(indexs.begin(), indexs.end());
-			std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
-			BufferManager::putFrame(std::move(newFrame));
+			//std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
+			newFrame = BufferManager::putFrame(std::move(newFrame));
 		}
 		
 	}

@@ -14,5 +14,5 @@ public:
 	void shutdown();
 
 	static unique_ptr<BufferFrame> getFrame();
-	static void putFrame(unique_ptr<BufferFrame> frame);
+	static unique_ptr<BufferFrame> putFrame(unique_ptr<BufferFrame> frame);
 };
