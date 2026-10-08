@@ -106,37 +106,50 @@ QSize BgfxWindow::physicalSize() const
 void BgfxWindow::drawModelFPS()
 {
 	WLOG_FUNCTION_TIMER();
-    auto renderFrame = BufferManager::getFrame();
-	if (renderFrame==nullptr)
+
+	// Fetch the latest frame produced by the background cutting thread (if any).
+	auto newFrame = BufferManager::getFrame();
+
+	if (newFrame != nullptr)
 	{
-		if (m_bufferFrame == nullptr)
-		{
-            return;
-		}
-        else
-        {
-           
-            bgfx::destroy(m_modelVbh);
-			bgfx::destroy(m_modelIbh);
-        }
-        renderFrame = std::move(m_bufferFrame);
+		// New frame data arrived: cache it on the CPU and (re)build the GPU
+		// buffers exactly once. The previous buffers MUST be destroyed first,
+		// otherwise each new frame leaks handles and we eventually exhaust
+		// BGFX_CONFIG_MAX_VERTEX_BUFFERS (4096).
+		m_bufferFrame = std::move(newFrame);
+
+		if (bgfx::isValid(m_modelVbh)) { bgfx::destroy(m_modelVbh); m_modelVbh = BGFX_INVALID_HANDLE; }
+		if (bgfx::isValid(m_modelIbh)) { bgfx::destroy(m_modelIbh); m_modelIbh = BGFX_INVALID_HANDLE; }
 	}
 
-	m_modelLayout
-		.begin()
-		.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-		.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
-		.end();
-	m_modelVbh = bgfx::createVertexBuffer(
-		bgfx::copy(renderFrame->vertices.data(), uint32_t(renderFrame->vertices.size() * sizeof(ModelVertex))),
-		m_modelLayout
-	);
-	m_modelIbh = bgfx::createIndexBuffer(
-		bgfx::copy(renderFrame->indices.data(), uint32_t(renderFrame->indices.size() * sizeof(uint32_t))),
-		BGFX_BUFFER_INDEX32
-	);
-	
+	// No cached frame data (and no new frame): nothing to draw.
+	if (m_bufferFrame == nullptr)
+		return;
 
+	// Lazily create the GPU buffers for the first cached frame.
+	if (!bgfx::isValid(m_modelVbh))
+	{
+		const BufferFrame& frame = *m_bufferFrame;
+		if (frame.vertices.empty() || frame.indices.empty())
+			return;
+
+		m_modelLayout
+			.begin()
+			.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+			.add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
+			.end();
+		m_modelVbh = bgfx::createVertexBuffer(
+			bgfx::copy(frame.vertices.data(), uint32_t(frame.vertices.size() * sizeof(ModelVertex))),
+			m_modelLayout
+		);
+		m_modelIbh = bgfx::createIndexBuffer(
+			bgfx::copy(frame.indices.data(), uint32_t(frame.indices.size() * sizeof(uint32_t))),
+			BGFX_BUFFER_INDEX32
+		);
+	}
+
+	// Submit: with no new frame this simply re-draws the existing buffers,
+	// no allocation happens.
 	float model[16];
 	bx::mtxIdentity(model);
 
@@ -146,8 +159,6 @@ void BgfxWindow::drawModelFPS()
 	// Depth test + RGB write, no face culling so every face is drawn.
 	bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
 	bgfx::submit(0, m_program);
-
-    m_bufferFrame = std::move(renderFrame);
 }
 
 static std::vector<ModelVertexZ> vertices(2000000);
