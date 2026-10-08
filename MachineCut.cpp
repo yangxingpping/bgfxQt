@@ -114,51 +114,56 @@ void WriteOBJ(const std::string& filename, const MeshGL& mesh) {
 void MachineCut::ManifoldTest()
 {
 	//WLOG_FUNCTION_TIMER();
-
+	spdlog::flush_on(spdlog::level::info);
 	Manifold terrain = Manifold::Cube(vec3(10.0, 2.0, 10.0), true);
 	
-	double unit_size = 10.0 / 100;
+	double unit_size = 10.0 / 400;
 	unique_ptr<BufferFrame> newFrame = nullptr;
+	manifold::MeshGL mesh;
+	for (int k = 0; k < 8; ++k)
+	{
+		spdlog::info("Cutting layer {}", k);
+		for (int j = 0; j < 100; ++j) {
 
-	for (int j = 0; j < 100; ++j) {
+			for (int i = 0; i < 400; ++i) {
+				float x = 5.0f;
+				float z = -5.0f + i * unit_size;
+				Manifold tool = Manifold::Cube(vec3(0.3f, 0.3f, 0.3f), false).Translate(vec3(-5.0 + j * 0.1, 1 - (k+1)*0.15, z));
+				terrain -= tool;
+				//if (i %20==0)
+				{
+					terrain = terrain.AsOriginal();
+					terrain = terrain.Simplify(0.01);
+				}
+				mesh = terrain.GetMeshGL();
 
-		for (int i = 0; i < 100; ++i) {
-			float x = 5.0f;
-			float z = -5.0f + i * unit_size;
-			Manifold tool = Manifold::Cube(vec3(0.3f, 0.3f, 0.3f), false).Translate(vec3(-5.0 + j * 0.1, 0.85, z));
-			terrain -= tool;
-			if (j % 2 == 0) 
-			{
-				terrain = terrain.AsOriginal();
-				terrain.Simplify(0.1);
-			}
-			manifold::MeshGL mesh = terrain.GetMeshGL();
-			
-			 uint32_t numVert = uint32_t(mesh.NumVert());
-			 uint32_t numTri = uint32_t(mesh.NumTri());
-			 //spdlog::info("Uploading manifold mesh to GPU: {} vertices, {} triangles.", numVert, numTri);
-			if (numVert == 0 || numTri == 0)
-				return;
-			if (newFrame == nullptr)
-			{
-				newFrame = make_unique<BufferFrame>();
-			}
-			newFrame->vertices.resize(numVert);
+				uint32_t numVert = uint32_t(mesh.NumVert());
+				uint32_t numTri = uint32_t(mesh.NumTri());
+				if (numVert == 0 || numTri == 0)
+					return;
+				if (newFrame == nullptr)
+				{
+					newFrame = make_unique<BufferFrame>();
+				}
+				newFrame->vertices.resize(numVert);
 
-			for (uint32_t i = 0; i < numVert; ++i)
-			{
-				const float* p = &mesh.vertProperties[i * mesh.numProp];
-				
-				newFrame->vertices[i].x = p[0];
-				newFrame->vertices[i].y = p[1];
-				newFrame->vertices[i].z = p[2];
-				newFrame->vertices[i].abgr = 0xff808080;
+				for (uint32_t i = 0; i < numVert; ++i)
+				{
+					const float* p = &mesh.vertProperties[i * mesh.numProp];
+
+					newFrame->vertices[i].x = p[0];
+					newFrame->vertices[i].y = p[1];
+					newFrame->vertices[i].z = p[2];
+					newFrame->vertices[i].abgr = 0xff808080;
+				}
+				auto& indexs = mesh.triVerts;
+				newFrame->indices.assign(indexs.begin(), indexs.end());
+				//std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
+				newFrame = BufferManager::putFrame(std::move(newFrame));
 			}
-			auto& indexs = mesh.triVerts;
-			newFrame->indices.assign(indexs.begin(), indexs.end());
-			//std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
-			newFrame = BufferManager::putFrame(std::move(newFrame));
+
 		}
+		spdlog::info("end Cutting layer {}", k);
 		
 	}
 }

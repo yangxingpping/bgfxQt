@@ -105,7 +105,7 @@ QSize BgfxWindow::physicalSize() const
 
 void BgfxWindow::drawModelFPS()
 {
-	WLOG_FUNCTION_TIMER();
+	//WLOG_FUNCTION_TIMER();
 
 	// Fetch the latest frame produced by the background cutting thread (if any).
 	auto newFrame = BufferManager::getFrame();
