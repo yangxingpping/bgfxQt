@@ -129,7 +129,6 @@ void BgfxWindow::drawModel()
         
         for (uint32_t t = 0; t < numTri; ++t)
         {
-            break;
             const uint32_t i0 = mesh.triVerts[t * 3 + 0];
             const uint32_t i1 = mesh.triVerts[t * 3 + 1];
             const uint32_t i2 = mesh.triVerts[t * 3 + 2];
