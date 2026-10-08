@@ -3,6 +3,7 @@
 #include "meshIO.h"
 #include "wlog.h"
 #include <set>
+#include <fstream>
 #include <tuple>
 #include <vector>
 using std::vector;
@@ -75,6 +76,31 @@ manifold::MeshGL MachineCut::LoadMesh(const string& filename)
 	return mesh.GetMeshGL();
 }
 
+
+void WriteOBJ(const std::string& filename, const MeshGL& mesh) {
+	WLOG_FUNCTION_TIMER();
+	std::ofstream file(filename);
+	if (!file.is_open()) {
+		spdlog::error("cannot open: {}", filename);
+		return;
+	}
+
+	// 写入顶点
+	for (size_t i = 0; i < mesh.NumVert(); ++i) {
+		auto pos = mesh.GetVertPos(i);
+		file << "v " << pos.x << " " << pos.y << " " << pos.z << "\n";
+	}
+
+	// 写入面（OBJ 索引从 1 开始）
+	for (size_t i = 0; i < mesh.NumTri(); ++i) {
+		auto tri = mesh.GetTriVerts(i);
+		file << "f " << (tri[0] + 1) << " " << (tri[1] + 1) << " " << (tri[2] + 1) << "\n";
+	}
+
+	file.close();
+	spdlog::info("exported: {}", filename);
+}
+
 void MachineCut::ManifoldTest()
 {
 	WLOG_FUNCTION_TIMER();
@@ -84,7 +110,7 @@ void MachineCut::ManifoldTest()
 	vector<Manifold> carvingTools;
 	double unit_size = 10.0 / 1000;
 
-	for (int j = 0; j < 100; ++j) {
+	for (int j = 0; j < 10; ++j) {
 
 		for (int i = 0; i < 1000; ++i) {
 			float x = 5.0f;
@@ -97,9 +123,9 @@ void MachineCut::ManifoldTest()
 
 		terrain -= toolCombine;
 		
-		terrain.Simplify(0.01);
+		terrain = terrain.AsOriginal();
+		terrain.Simplify(0.1);
 		
-
 		// Diff: collect vertex positions before the subtraction.
 
 
@@ -120,4 +146,6 @@ void MachineCut::ManifoldTest()
 	else {
 		spdlog::error("Error during boolean operations.");
 	}
+
+	WriteOBJ("result.obj", resultMesh);
 }
