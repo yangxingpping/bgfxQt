@@ -113,6 +113,12 @@ void BgfxWindow::drawModelFPS()
 		{
             return;
 		}
+        else
+        {
+           
+            bgfx::destroy(m_modelVbh);
+			bgfx::destroy(m_modelIbh);
+        }
         renderFrame = std::move(m_bufferFrame);
 	}
 

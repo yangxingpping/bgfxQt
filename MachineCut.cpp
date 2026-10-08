@@ -117,15 +117,15 @@ void MachineCut::ManifoldTest()
 
 	Manifold terrain = Manifold::Cube(vec3(10.0, 2.0, 10.0), true);
 	
-	double unit_size = 10.0 / 200;
+	double unit_size = 10.0 / 100;
 
 
 	for (int j = 0; j < 100; ++j) {
 
-		for (int i = 0; i < 200; ++i) {
+		for (int i = 0; i < 100; ++i) {
 			float x = 5.0f;
 			float z = -5.0f + i * unit_size;
-			Manifold tool = Manifold::Cube(vec3(0.1f, 0.1f, 0.1f), false).Translate(vec3(-5.0 + j * 0.1, 0.95, z));
+			Manifold tool = Manifold::Cube(vec3(0.3f, 0.3f, 0.3f), false).Translate(vec3(-5.0 + j * 0.1, 0.85, z));
 			terrain -= tool;
 			if (j % 100 == 0) {
 				terrain = terrain.AsOriginal();
@@ -149,11 +149,11 @@ void MachineCut::ManifoldTest()
 				newFrame->vertices[i].x = p[0];
 				newFrame->vertices[i].y = p[1];
 				newFrame->vertices[i].z = p[2];
-				newFrame->vertices[i].abgr = 0xffd3d3d3;
+				newFrame->vertices[i].abgr = 0xff808080;
 			}
 			auto& indexs = mesh.triVerts;
 			newFrame->indices.assign(indexs.begin(), indexs.end());
-			//std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
+			std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
 			BufferManager::putFrame(std::move(newFrame));
 		}
 		
