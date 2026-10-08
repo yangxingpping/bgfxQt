@@ -2,12 +2,18 @@
 #include "machinecut.h"
 #include "meshIO.h"
 #include "wlog.h"
-
+#include "buffermanager.h"
 
 #include <set>
 #include <fstream>
 #include <tuple>
 #include <vector>
+#include <memory>
+
+using std::tuple;
+using std::make_tuple;
+using std::make_unique;
+using std::unique_ptr;
 using std::vector;
 using namespace manifold;
 
@@ -111,45 +117,42 @@ void MachineCut::ManifoldTest()
 
 	Manifold terrain = Manifold::Cube(vec3(10.0, 2.0, 10.0), true);
 	
-	vector<Manifold> carvingTools;
 	double unit_size = 10.0 / 1000;
 
-	for (int j = 0; j < 10; ++j) {
+	for (int j = 0; j < 100; ++j) {
 
 		for (int i = 0; i < 1000; ++i) {
 			float x = 5.0f;
 			float z = -5.0f + i * unit_size;
 			Manifold tool = Manifold::Cube(vec3(0.1f, 0.1f, 0.1f), false).Translate(vec3(-5.0 + j * 0.1, 0.95, z));
 			terrain -= tool;
-			if (j % 50 == 0) {
-				terrain = terrain.AsOriginal();
-				terrain.Simplify(0.05);
+			terrain = terrain.AsOriginal();
+			terrain.Simplify(0.05);
+			/*if (j % 50 == 0) {
+				
+				
+			}*/
+			const manifold::MeshGL mesh = terrain.GetMeshGL();
+			auto newFrame = make_unique<BufferFrame>();
+
+			const uint32_t numVert = uint32_t(mesh.NumVert());
+			const uint32_t numTri = uint32_t(mesh.NumTri());
+
+			if (numVert == 0 || numTri == 0)
+				return;
+			newFrame->vertices.resize(numVert);
+
+			for (uint32_t i = 0; i < numVert; ++i)
+			{
+				const float* p = &mesh.vertProperties[i * mesh.numProp];
+				
+				newFrame->vertices[i].x = p[0];
+				newFrame->vertices[i].y = p[1];
+				newFrame->vertices[i].z = p[2];
+				newFrame->vertices[i].abgr = 0;
 			}
+			BufferManager::putFrame(std::move(newFrame));
 		}
 		
-		
-		
-		
-		// Diff: collect vertex positions before the subtraction.
-
-
-		carvingTools.clear();
-		
 	}
-
-
-
-	MeshGL resultMesh = terrain.GetMeshGL();
-	spdlog::info("Resulting mesh has {} triangles.", resultMesh.NumTri());
-
-	// 5. 检查结果有效性
-	if (terrain.Status() == Manifold::Error::NoError) {
-		//ExportMesh("terrain.glb", terrain.GetMesh(), {});
-		spdlog::info("Terrain carving completed successfully.");
-	}
-	else {
-		spdlog::error("Error during boolean operations.");
-	}
-
-	WriteOBJ("result.obj", resultMesh);
 }

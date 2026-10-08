@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "BufferManager.h"
 #include "NavigationCube.h"
 
 QT_BEGIN_NAMESPACE
@@ -44,6 +45,7 @@ private:
     void renderFrame();
     QSize physicalSize() const;
 	void drawModel();
+    void drawModelFPS();
     void drawModelWithTransient();
     void drawAxis3D();
     void drawLight();
@@ -103,4 +105,5 @@ private:
 	manifold::MeshGL m_mesh;
 
     NavigationCube m_navCube;
+	unique_ptr<BufferFrame> m_bufferFrame;
 };

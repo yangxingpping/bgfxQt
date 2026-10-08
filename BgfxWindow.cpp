@@ -43,7 +43,7 @@ struct PosColorVertex
 
 // Packed model vertex for the transient-buffer draw path:
 // position (3 floats) + normal-mapped color (RGBA8).
-struct ModelVertex
+struct ModelVertexZ
 {
     float    x, y, z;
     uint32_t abgr;
@@ -103,7 +103,46 @@ QSize BgfxWindow::physicalSize() const
     );
 }
 
-static std::vector<ModelVertex> vertices(2000000);
+void BgfxWindow::drawModelFPS()
+{
+	WLOG_FUNCTION_TIMER();
+    auto renderFrame = BufferManager::getFrame();
+	if (renderFrame==nullptr)
+	{
+		if (m_bufferFrame == nullptr)
+		{
+            return;
+		}
+        renderFrame = std::move(m_bufferFrame);
+	}
+
+	m_modelLayout
+		.begin()
+		.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+		.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+		.end();
+	m_modelVbh = bgfx::createVertexBuffer(
+		bgfx::copy(renderFrame->vertices.data(), uint32_t(renderFrame->vertices.size() * sizeof(ModelVertex))),
+		m_modelLayout
+	);
+	m_modelIbh = bgfx::createIndexBuffer(
+		bgfx::copy(renderFrame->indices.data(), uint32_t(renderFrame->indices.size() * sizeof(uint32_t))),
+		BGFX_BUFFER_INDEX32
+	);
+	
+
+	float model[16];
+	bx::mtxIdentity(model);
+
+	bgfx::setTransform(model);
+	bgfx::setVertexBuffer(0, m_modelVbh);
+	bgfx::setIndexBuffer(m_modelIbh);
+	// Depth test + RGB write, no face culling so every face is drawn.
+	bgfx::setState(BGFX_STATE_DEFAULT & ~BGFX_STATE_CULL_MASK);
+	bgfx::submit(0, m_program);
+}
+
+static std::vector<ModelVertexZ> vertices(2000000);
 static std::vector<bx::Vec3> normals(2000000, { 0.0f, 0.0f, 0.0f });
 
 void BgfxWindow::drawModel()
@@ -171,7 +210,7 @@ void BgfxWindow::drawModel()
             }
         }
         SPDLOG_INFO("test 2");
-        // Pack position (3 floats) + color (RGBA8); ModelVertex is defined in
+        // Pack position (3 floats) + color (RGBA8); ModelVertexZ is defined in
         // the file-scope anonymous namespace.
         
         for (uint32_t i = 0; i < numVert; ++i)
@@ -202,7 +241,7 @@ void BgfxWindow::drawModel()
             .end();
         SPDLOG_INFO("test 4");
         m_modelVbh = bgfx::createVertexBuffer(
-            bgfx::copy(vertices.data(), uint32_t(numVert * sizeof(ModelVertex))),
+            bgfx::copy(vertices.data(), uint32_t(numVert * sizeof(ModelVertexZ))),
             m_modelLayout
         );
         SPDLOG_INFO("test 5");
@@ -828,7 +867,8 @@ void BgfxWindow::renderFrame()
 
     bgfx::touch(0);
 
-    drawModel();
+    drawModelFPS();
+    //drawModel();
     //drawModelWithTransient();
     drawAxis3D();
     drawLight();
