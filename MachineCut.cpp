@@ -95,71 +95,12 @@ void MachineCut::ManifoldTest()
 		Manifold toolCombine;
 		manifold_tool_combine(carvingTools, toolCombine);
 
-		// Diff: collect vertex positions before the subtraction.
-		const MeshGL meshBefore = terrain.GetMeshGL();
-		std::vector<std::tuple<float, float, float>> vertsBeforev;
-		std::set<std::tuple<float, float, float>> vertsBefore;
-
-
-		for (uint32_t v = 0; v < meshBefore.NumVert(); ++v)
-		{
-			const float* p = &meshBefore.vertProperties[v * meshBefore.numProp];
-			vertsBeforev.emplace_back(p[0], p[1], p[2]);
-			vertsBefore.emplace(p[0], p[1], p[2]);
-		}
-
 		terrain -= toolCombine;
-		terrain.Simplify(0.1);
+		
+		terrain.Simplify(0.01);
+		
 
-		// Diff: collect vertex positions after the subtraction and classify.
-		const MeshGL meshAfter = terrain.GetMeshGL();
-		std::set<std::tuple<float, float, float>> vertsAfter;
-		std::vector<std::tuple<float, float, float>> vertsAfterv;
-		for (uint32_t v = 0; v < meshAfter.NumVert(); ++v)
-		{
-			const float* p = &meshAfter.vertProperties[v * meshAfter.numProp];
-			vertsAfter.emplace(p[0], p[1], p[2]);
-			vertsAfterv.emplace_back(p[0], p[1], p[2]);
-		}
-
-		for (int i = 0; i < vertsBeforev.size(); ++i)
-		{
-			if (i < vertsAfterv.size()) {
-				auto& before = *std::next(vertsBeforev.begin(), i);
-				auto& after = *std::next(vertsAfterv.begin(), i);
-				if (before != after) {
-					spdlog::info("[ManifoldTest] pass {}: vertex {} changed from ({:.3f}, {:.3f}, {:.3f}) to ({:.3f}, {:.3f}, {:.3f})",
-						j, i,
-						std::get<0>(before), std::get<1>(before), std::get<2>(before),
-						std::get<0>(after), std::get<1>(after), std::get<2>(after));
-					break;
-				}
-			}
-			else {
-				break;
-			}
-		}
-
-		std::vector<std::tuple<float, float, float>> removedVerts;
-		std::vector<std::tuple<float, float, float>> addedVerts;
-		for (const auto& v : vertsBefore)
-			if (!vertsAfter.count(v)) removedVerts.push_back(v);
-		for (const auto& v : vertsAfter)
-			if (!vertsBefore.count(v)) addedVerts.push_back(v);
-
-		spdlog::info("[ManifoldTest] pass {}: before {} verts / {} tris -> after {} verts / {} tris",
-			j, meshBefore.NumVert(), meshBefore.NumTri(), meshAfter.NumVert(), meshAfter.NumTri());
-		spdlog::info("[ManifoldTest] pass {}: {} vertices removed, {} vertices added (modified = shared keys with changed normals)",
-			j, removedVerts.size(), addedVerts.size());
-
-		// Log first few removed/added vertex positions for inspection.
-		const size_t maxPrint = 5;
-		for (size_t k = 0; k < std::min(removedVerts.size(), maxPrint); ++k)
-			spdlog::info("  removed: ({:.3f}, {:.3f}, {:.3f})",
-				std::get<0>(removedVerts[k]), std::get<1>(removedVerts[k]), std::get<2>(removedVerts[k]));
-		for (size_t k = 0; k < std::min(addedVerts.size(), maxPrint); ++k)
-			spdlog::info("  added:   ({:.3f}, {:.3f}, {:.3f})",
-				std::get<0>(addedVerts[k]), std::get<1>(addedVerts[k]), std::get<2>(addedVerts[k]));
+		// Diff: collect vertex positions before the subtraction.
 
 
 		carvingTools.clear();
