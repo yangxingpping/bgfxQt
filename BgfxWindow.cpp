@@ -698,7 +698,7 @@ bool BgfxWindow::initBgfx()
     init.resolution.width  = fbSize.width();
     init.resolution.height = fbSize.height();
 
-    init.resolution.reset = BGFX_RESET_VSYNC;
+    init.resolution.reset = BGFX_RESET_MSAA_X16;// BGFX_RESET_VSYNC;
 
     if (!bgfx::init(init))
     {
