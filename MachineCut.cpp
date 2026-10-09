@@ -3,6 +3,7 @@
 #include "meshIO.h"
 #include "wlog.h"
 #include "buffermanager.h"
+#include <bx/math.h>
 
 #include <set>
 #include <fstream>
@@ -146,17 +147,75 @@ void MachineCut::ManifoldTest()
 				{
 					newFrame = make_unique<BufferFrame>();
 				}
+
 				newFrame->vertices.resize(numVert);
+
+				std::vector<bx::Vec3> normals(numVert, { 0.0f, 0.0f, 0.0f });
+
+				for (uint32_t t = 0; t < numTri; ++t)
+				{
+					const uint32_t i0 = mesh.triVerts[t * 3 + 0];
+					const uint32_t i1 = mesh.triVerts[t * 3 + 1];
+					const uint32_t i2 = mesh.triVerts[t * 3 + 2];
+
+					const float* p0 = &mesh.vertProperties[i0 * mesh.numProp];
+					const float* p1 = &mesh.vertProperties[i1 * mesh.numProp];
+					const float* p2 = &mesh.vertProperties[i2 * mesh.numProp];
+
+					const bx::Vec3 e1 = { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] };
+					const bx::Vec3 e2 = { p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2] };
+					bx::Vec3 n = bx::cross(e1, e2);
+					const float len2 = n.x * n.x + n.y * n.y + n.z * n.z;
+					if (len2 > 1e-12f)
+					{
+						const float invLen = 1.0f / bx::sqrt(len2);
+						n = { n.x * invLen, n.y * invLen, n.z * invLen };
+					}
+					else
+					{
+						n = { 0.0f, 1.0f, 0.0f };
+					}
+
+					normals[i0] = bx::add(normals[i0], n);
+					normals[i1] = bx::add(normals[i1], n);
+					normals[i2] = bx::add(normals[i2], n);
+				}
+				for (uint32_t i = 0; i < numVert; ++i)
+				{
+					bx::Vec3& n = normals[i];
+					const float len2 = n.x * n.x + n.y * n.y + n.z * n.z;
+					if (len2 > 1e-12f)
+					{
+						const float invLen = 1.0f / bx::sqrt(len2);
+						n = { n.x * invLen, n.y * invLen, n.z * invLen };
+					}
+					else
+					{
+						n = { 0.0f, 1.0f, 0.0f };
+					}
+				}
 
 				for (uint32_t i = 0; i < numVert; ++i)
 				{
 					const float* p = &mesh.vertProperties[i * mesh.numProp];
+					const bx::Vec3& n = normals[i];
+
+					// Map normal direction to a color (n * 0.5 + 0.5) for a shaded look.
+					const uint8_t r = uint8_t(bx::clamp(n.x * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+					const uint8_t g = uint8_t(bx::clamp(n.y * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+					const uint8_t b = uint8_t(bx::clamp(n.z * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f);
+					const uint8_t a = 255;
 
 					newFrame->vertices[i].x = p[0];
 					newFrame->vertices[i].y = p[1];
 					newFrame->vertices[i].z = p[2];
-					newFrame->vertices[i].abgr = 0xff808080;
+					newFrame->vertices[i].abgr =
+						(uint32_t(a) << 24) |
+						(uint32_t(b) << 16) |
+						(uint32_t(g) << 8) |
+						uint32_t(r);
 				}
+
 				auto& indexs = mesh.triVerts;
 				newFrame->indices.assign(indexs.begin(), indexs.end());
 				//std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
