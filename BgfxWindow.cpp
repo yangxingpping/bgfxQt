@@ -5,6 +5,7 @@
 #include <QCloseEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QKeyEvent>
 #include <QTimer>
 
 #include <bgfx/bgfx.h>
@@ -12,16 +13,23 @@
 #include <bx/math.h>
 #include <taskflow/taskflow.hpp>
 
+#include <imgui.h>
+
 #include "WLog.h"
 #include "MachineCut.h"
 
 #include <cmath>
+#include <chrono>
 #include <vector>
 
 #include "vs_cube_dx11.bin.h"
 #include "fs_cube_dx11.bin.h"
 #include "vs_cube_vk.bin.h"
 #include "fs_cube_vk.bin.h"
+#include "vs_imgui_dx11.bin.h"
+#include "fs_imgui_dx11.bin.h"
+#include "vs_imgui_vk.bin.h"
+#include "fs_imgui_vk.bin.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -77,6 +85,42 @@ static const uint16_t s_cubeIndices[] =
     6, 3, 7,
 };
 
+// Map a Qt::Key to an ImGuiKey for keyboard input forwarding.
+ImGuiKey qtToImGuiKey(int key)
+{
+    switch (key)
+    {
+        case Qt::Key_Tab:        return ImGuiKey_Tab;
+        case Qt::Key_Left:       return ImGuiKey_LeftArrow;
+        case Qt::Key_Right:      return ImGuiKey_RightArrow;
+        case Qt::Key_Up:         return ImGuiKey_UpArrow;
+        case Qt::Key_Down:       return ImGuiKey_DownArrow;
+        case Qt::Key_PageUp:     return ImGuiKey_PageUp;
+        case Qt::Key_PageDown:   return ImGuiKey_PageDown;
+        case Qt::Key_Home:       return ImGuiKey_Home;
+        case Qt::Key_End:        return ImGuiKey_End;
+        case Qt::Key_Insert:     return ImGuiKey_Insert;
+        case Qt::Key_Delete:     return ImGuiKey_Delete;
+        case Qt::Key_Backspace:  return ImGuiKey_Backspace;
+        case Qt::Key_Space:      return ImGuiKey_Space;
+        case Qt::Key_Return:     return ImGuiKey_Enter;
+        case Qt::Key_Enter:      return ImGuiKey_Enter;
+        case Qt::Key_Escape:     return ImGuiKey_Escape;
+        case Qt::Key_Shift:      return ImGuiKey_LeftShift;
+        case Qt::Key_Control:    return ImGuiKey_LeftCtrl;
+        case Qt::Key_Alt:        return ImGuiKey_LeftAlt;
+        case Qt::Key_Meta:       return ImGuiKey_LeftSuper;
+        default: break;
+    }
+    if (key >= Qt::Key_A && key <= Qt::Key_Z)
+        return ImGuiKey(ImGuiKey_A + (key - Qt::Key_A));
+    if (key >= Qt::Key_0 && key <= Qt::Key_9)
+        return ImGuiKey(ImGuiKey_0 + (key - Qt::Key_0));
+    if (key >= Qt::Key_F1 && key <= Qt::Key_F12)
+        return ImGuiKey(ImGuiKey_F1 + (key - Qt::Key_F1));
+    return ImGuiKey_None;
+}
+
 } // namespace
 
 BgfxWindow::BgfxWindow(QWidget* parent)
@@ -85,6 +129,10 @@ BgfxWindow::BgfxWindow(QWidget* parent)
     setAttribute(Qt::WA_NativeWindow);
     setAttribute(Qt::WA_OpaquePaintEvent);
     setAttribute(Qt::WA_NoSystemBackground);
+
+    // ImGui needs hover moves without buttons pressed and keyboard focus.
+    setMouseTracking(true);
+    setFocusPolicy(Qt::StrongFocus);
 
     resize(1280, 720);
 }
@@ -714,6 +762,9 @@ bool BgfxWindow::initBgfx()
     if (!initCube())
         return false;
 
+    if (!initImGui())
+        return false;
+
     // Navigation cube shares the same position+color shader as the cube.
     //m_navCube.init(m_program);
 
@@ -811,6 +862,229 @@ void BgfxWindow::destroyCube()
     m_cubeInitialized = false;
 }
 
+bool BgfxWindow::initImGui()
+{
+    if (m_imguiInitialized)
+        return true;
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+
+    ImGuiIO& io = ImGui::GetIO();
+    //io.BackendName = "bgfxQt";
+    io.IniFilename = nullptr; // no imgui.ini persistence
+
+    // ImDrawVert layout: pos (2 floats), uv (2 floats), col (RGBA8 normalized).
+    m_imguiLayout
+        .begin()
+        .add(bgfx::Attrib::Position,  2, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::Color0,    4, bgfx::AttribType::Uint8, true)
+        .end();
+
+    // Pick the shader blob matching the renderer bgfx selected at runtime.
+    const uint8_t* vsData = nullptr;
+    uint32_t       vsSize = 0;
+    const uint8_t* fsData = nullptr;
+    uint32_t       fsSize = 0;
+
+    switch (bgfx::getRendererType())
+    {
+        case bgfx::RendererType::Direct3D11:
+        case bgfx::RendererType::Direct3D12:
+            vsData = vs_imgui_dx11;
+            vsSize = sizeof(vs_imgui_dx11);
+            fsData = fs_imgui_dx11;
+            fsSize = sizeof(fs_imgui_dx11);
+            break;
+
+        case bgfx::RendererType::Vulkan:
+            vsData = vs_imgui_vk;
+            vsSize = sizeof(vs_imgui_vk);
+            fsData = fs_imgui_vk;
+            fsSize = sizeof(fs_imgui_vk);
+            break;
+
+        default:
+            ImGui::DestroyContext();
+            return false;
+    }
+
+    bgfx::ShaderHandle vsh = bgfx::createShader(bgfx::copy(vsData, vsSize));
+    bgfx::ShaderHandle fsh = bgfx::createShader(bgfx::copy(fsData, fsSize));
+    m_imguiProgram = bgfx::createProgram(vsh, fsh, true);
+    m_imguiTexUniform = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
+
+    // Upload the default font atlas to a GPU texture.
+    uint8_t* pixels = nullptr;
+    int      width  = 0;
+    int      height = 0;
+    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+    m_imguiFontTex = bgfx::createTexture2D(
+        uint16_t(width),
+        uint16_t(height),
+        false, // no mipmaps
+        1,
+        bgfx::TextureFormat::RGBA8,
+        BGFX_TEXTURE_NONE | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT,
+        bgfx::copy(pixels, uint32_t(width * height * 4))
+    );
+    io.Fonts->TexID = ImTextureID(uint64_t(m_imguiFontTex.idx));
+
+    m_imguiInitialized = true;
+    return true;
+}
+
+void BgfxWindow::shutdownImGui()
+{
+    if (!m_imguiInitialized)
+        return;
+
+    if (bgfx::isValid(m_imguiFontTex))    bgfx::destroy(m_imguiFontTex);
+    if (bgfx::isValid(m_imguiTexUniform)) bgfx::destroy(m_imguiTexUniform);
+    if (bgfx::isValid(m_imguiProgram))    bgfx::destroy(m_imguiProgram);
+    m_imguiFontTex    = BGFX_INVALID_HANDLE;
+    m_imguiTexUniform = BGFX_INVALID_HANDLE;
+    m_imguiProgram    = BGFX_INVALID_HANDLE;
+
+    ImGui::DestroyContext();
+    m_imguiInitialized = false;
+}
+
+void BgfxWindow::imguiNewFrame()
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    // ImGui works in logical (DIP) coordinates; FramebufferScale maps them to
+    // the physical pixels used by the bgfx framebuffer.
+    const qreal dpr = devicePixelRatioF();
+    io.DisplaySize = ImVec2(float(width()), float(height()));
+    io.DisplayFramebufferScale = ImVec2(float(dpr), float(dpr));
+
+    m_imguiFbWidth  = uint32_t(io.DisplaySize.x * dpr);
+    m_imguiFbHeight = uint32_t(io.DisplaySize.y * dpr);
+
+    // Wall-clock delta for ImGui animations/widgets.
+    static auto lastTime = std::chrono::steady_clock::now();
+    const auto now = std::chrono::steady_clock::now();
+    io.DeltaTime = std::chrono::duration<float>(now - lastTime).count();
+    lastTime = now;
+    if (io.DeltaTime <= 0.0f)
+        io.DeltaTime = 1.0f / 60.0f;
+
+    ImGui::NewFrame();
+
+    // Small status/control panel.
+    ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
+    ImGui::Begin("bgfxQt");
+    ImGui::Text("FPS: %.1f (%.2f ms)", io.Framerate, 1000.0f / io.Framerate);
+    ImGui::Text("Camera: yaw %.2f  pitch %.2f  dist %.1f",
+                double(m_cameraYaw), double(m_cameraPitch), double(m_cameraDistance));
+    ImGui::Text("Target: (%.2f, %.2f, %.2f)",
+                double(m_target.x), double(m_target.y), double(m_target.z));
+    ImGui::Checkbox("ImGui demo window", &m_imguiShowDemo);
+    ImGui::End();
+
+    if (m_imguiShowDemo)
+        ImGui::ShowDemoWindow(&m_imguiShowDemo);
+}
+
+void BgfxWindow::imguiRender(const ImDrawData* drawData)
+{
+    if (drawData == nullptr || drawData->CmdListsCount == 0 || drawData->TotalVtxCount == 0)
+        return;
+
+    // Overlay view rendered after the 3D scene (view 0) and nav cube (view 1).
+    const bgfx::ViewId kImGuiView = 2;
+
+    // Orthographic projection over the ImGui display area (logical coords,
+    // y grows downward in ImGui screen space).
+    float ortho[16];
+    const float left   = drawData->DisplayPos.x;
+    const float right  = drawData->DisplayPos.x + drawData->DisplaySize.x;
+    const float top    = drawData->DisplayPos.y;
+    const float bottom = drawData->DisplayPos.y + drawData->DisplaySize.y;
+    bx::mtxOrtho(
+        ortho,
+        left, right,
+        bottom, top,
+        0.0f, 1000.0f,
+        0.0f,
+        bgfx::getCaps()->homogeneousDepth
+    );
+
+    bgfx::setViewRect(kImGuiView, 0, 0, uint16_t(m_imguiFbWidth), uint16_t(m_imguiFbHeight));
+    bgfx::setViewTransform(kImGuiView, nullptr, ortho);
+
+    const ImVec2 clipOff   = drawData->DisplayPos;
+    const ImVec2 clipScale = drawData->FramebufferScale;
+
+    for (int n = 0; n < drawData->CmdListsCount; ++n)
+    {
+        const ImDrawList* cmdList = drawData->CmdLists[n];
+        const uint32_t numVtx = uint32_t(cmdList->VtxBuffer.Size);
+        const uint32_t numIdx = uint32_t(cmdList->IdxBuffer.Size);
+
+        bgfx::TransientVertexBuffer tvb;
+        bgfx::TransientIndexBuffer  tib;
+        if (!bgfx::allocTransientBuffers(
+                &tvb, m_imguiLayout, numVtx,
+                &tib, numIdx, sizeof(ImDrawIdx) == sizeof(uint32_t)))
+        {
+            SPDLOG_WARN("imgui: transient pool exhausted ({} verts, {} indices); skipping cmd list.", numVtx, numIdx);
+            continue;
+        }
+        bx::memCopy(tvb.data, cmdList->VtxBuffer.Data, numVtx * sizeof(ImDrawVert));
+        bx::memCopy(tib.data, cmdList->IdxBuffer.Data, numIdx * sizeof(ImDrawIdx));
+
+        uint32_t idxOffset = 0;
+        for (int c = 0; c < cmdList->CmdBuffer.Size; ++c)
+        {
+            const ImDrawCmd* pcmd = &cmdList->CmdBuffer[c];
+
+            if (pcmd->UserCallback != nullptr || pcmd->ElemCount == 0)
+            {
+                idxOffset += pcmd->ElemCount;
+                continue;
+            }
+
+            // Scissor rect in physical framebuffer pixels, clamped to the view.
+            const ImVec2 clipMin(
+                (pcmd->ClipRect.x - clipOff.x) * clipScale.x,
+                (pcmd->ClipRect.y - clipOff.y) * clipScale.y
+            );
+            const ImVec2 clipMax(
+                (pcmd->ClipRect.z - clipOff.x) * clipScale.x,
+                (pcmd->ClipRect.w - clipOff.y) * clipScale.y
+            );
+            const int32_t sx = int32_t(bx::max(clipMin.x, 0.0f));
+            const int32_t sy = int32_t(bx::max(clipMin.y, 0.0f));
+            const int32_t sw = int32_t(bx::max(clipMax.x - clipMin.x, 0.0f));
+            const int32_t sh = int32_t(bx::max(clipMax.y - clipMin.y, 0.0f));
+            if (sw == 0 || sh == 0)
+            {
+                idxOffset += pcmd->ElemCount;
+                continue;
+            }
+            bgfx::setScissor(uint16_t(sx), uint16_t(sy), uint16_t(sw), uint16_t(sh));
+
+            bgfx::setVertexBuffer(0, &tvb);
+            bgfx::setIndexBuffer(&tib, idxOffset, pcmd->ElemCount);
+            bgfx::setTexture(0, m_imguiTexUniform, m_imguiFontTex);
+            bgfx::setState(
+                BGFX_STATE_WRITE_RGB
+                | BGFX_STATE_WRITE_A
+                | BGFX_STATE_BLEND_ALPHA
+                | BGFX_STATE_MSAA
+            );
+            bgfx::submit(kImGuiView, m_imguiProgram);
+
+            idxOffset += pcmd->ElemCount;
+        }
+    }
+}
+
 void BgfxWindow::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
@@ -893,7 +1167,15 @@ void BgfxWindow::renderFrame()
     drawLight();
 
     // Render the navigation cube overlay in the top-left corner (view 1).
-    //m_navCube.render(1, m_cameraYaw, m_cameraPitch, uint16_t(fbSize.width()), uint16_t(fbSize.height()));
+    //m_navCube.render(1, m_cameraYaw, m_cameraPitch, uint16_t(fbSize.width()), uint16_t(fbHeight()));
+
+    // ImGui overlay on view 2.
+    if (m_imguiInitialized)
+    {
+        imguiNewFrame();
+        ImGui::Render();
+        imguiRender(ImGui::GetDrawData());
+    }
 
     bgfx::frame();
 }
@@ -903,6 +1185,19 @@ void BgfxWindow::mousePressEvent(QMouseEvent* event)
     QWidget::mousePressEvent(event);
 
     const QPoint pos = event->position().toPoint();
+
+    // Feed ImGui. If ImGui wants the mouse, don't pass the event to the camera.
+    if (m_imguiInitialized)
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddMousePosEvent(float(pos.x()), float(pos.y()));
+        if (event->button() == Qt::LeftButton)   io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+        if (event->button() == Qt::RightButton)  io.AddMouseButtonEvent(ImGuiMouseButton_Right, true);
+        if (event->button() == Qt::MiddleButton) io.AddMouseButtonEvent(ImGuiMouseButton_Middle, true);
+
+        if (io.WantCaptureMouse)
+            return;
+    }
 
     // Convert widget-local (DIP) coordinates to physical pixels so they match
     // the bgfx framebuffer coordinates used by the navigation cube.
@@ -998,10 +1293,24 @@ void BgfxWindow::mouseMoveEvent(QMouseEvent* event)
 {
     QWidget::mouseMoveEvent(event);
 
+    const QPoint pos = event->position().toPoint();
+
+    // Always forward the cursor position so ImGui hover/highlight works even
+    // when no camera drag is active. If ImGui captures the mouse, skip camera.
+    if (m_imguiInitialized)
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddMousePosEvent(float(pos.x()), float(pos.y()));
+        if (io.WantCaptureMouse)
+        {
+            m_lastMousePos = pos;
+            return;
+        }
+    }
+
     if (!m_leftDragging && !m_rightDragging)
         return;
 
-    const QPoint pos   = event->position().toPoint();
     const QPoint delta = pos - m_lastMousePos;
     m_lastMousePos = pos;
 
@@ -1049,6 +1358,14 @@ void BgfxWindow::mouseReleaseEvent(QMouseEvent* event)
 {
     QWidget::mouseReleaseEvent(event);
 
+    if (m_imguiInitialized)
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        if (event->button() == Qt::LeftButton)   io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+        if (event->button() == Qt::RightButton)  io.AddMouseButtonEvent(ImGuiMouseButton_Right, false);
+        if (event->button() == Qt::MiddleButton) io.AddMouseButtonEvent(ImGuiMouseButton_Middle, false);
+    }
+
     if (event->button() == Qt::LeftButton)
     {
         m_leftDragging = false;
@@ -1066,9 +1383,66 @@ void BgfxWindow::wheelEvent(QWheelEvent* event)
 {
     QWidget::wheelEvent(event);
 
+    if (m_imguiInitialized)
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddMouseWheelEvent(
+            float(event->angleDelta().x()) / 120.0f,
+            float(event->angleDelta().y()) / 120.0f
+        );
+        if (io.WantCaptureMouse)
+            return;
+    }
+
     // angleDelta is in eighths of a degree; a typical notch is 120.
     const float step = float(event->angleDelta().y()) / 120.0f * 0.5f;
     m_cameraDistance = bx::clamp(m_cameraDistance - step, 1.5f, 50.0f);
+}
+
+void BgfxWindow::keyPressEvent(QKeyEvent* event)
+{
+    QWidget::keyPressEvent(event);
+
+    if (!m_imguiInitialized)
+        return;
+
+    ImGuiIO& io = ImGui::GetIO();
+    const Qt::KeyboardModifiers mods = event->modifiers();
+    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.testFlag(Qt::ControlModifier));
+    io.AddKeyEvent(ImGuiMod_Shift, mods.testFlag(Qt::ShiftModifier));
+    io.AddKeyEvent(ImGuiMod_Alt,   mods.testFlag(Qt::AltModifier));
+    io.AddKeyEvent(ImGuiMod_Super, mods.testFlag(Qt::MetaModifier));
+
+    const ImGuiKey key = qtToImGuiKey(event->key());
+    if (key != ImGuiKey_None)
+        io.AddKeyEvent(key, true);
+
+    // Text input goes through a separate channel (UTF-8).
+    const QString text = event->text();
+    if (!text.isEmpty())
+    {
+        const QByteArray utf8 = text.toUtf8();
+        io.AddInputCharactersUTF8(utf8.constData());
+    }
+}
+
+void BgfxWindow::keyReleaseEvent(QKeyEvent* event)
+{
+    QWidget::keyReleaseEvent(event);
+
+    if (!m_imguiInitialized)
+        return;
+
+    ImGuiIO& io = ImGui::GetIO();
+    const Qt::KeyboardModifiers mods = event->modifiers();
+    io.AddKeyEvent(ImGuiMod_Ctrl,  mods.testFlag(Qt::ControlModifier));
+    io.AddKeyEvent(ImGuiMod_Shift, mods.testFlag(Qt::ShiftModifier));
+    io.AddKeyEvent(ImGuiMod_Alt,   mods.testFlag(Qt::AltModifier));
+    io.AddKeyEvent(ImGuiMod_Super, mods.testFlag(Qt::MetaModifier));
+
+    const ImGuiKey key = qtToImGuiKey(event->key());
+    if (key != ImGuiKey_None)
+        io.AddKeyEvent(key, false);
 }
 
 void BgfxWindow::closeEvent(QCloseEvent* event)
@@ -1089,6 +1463,7 @@ void BgfxWindow::shutdownBgfx()
     }
 
     destroyCube();
+    shutdownImGui();
     //m_navCube.destroy();
 
     if (bgfx::isValid(m_modelVbh)) bgfx::destroy(m_modelVbh);

@@ -61,7 +61,7 @@ else()
     endif()
 endif()
 
-target_link_libraries(bgfxQt PRIVATE Qt6::OpenGLWidgets PRIVATE Qt${QT_VERSION_MAJOR}::Widgets PRIVATE imgui::imgui PRIVATE bgfx::bx bgfx::bgfx bgfx::bimg bgfx::bimg_decode PRIVATE concurrentqueue::concurrentqueue PRIVATE manifold::manifold PRIVATE spdlog::spdlog PRIVATE assimp::assimp)
+target_link_libraries(bgfxQt PRIVATE Qt6::OpenGLWidgets PRIVATE Qt${QT_VERSION_MAJOR}::Widgets PRIVATE bgfx::bx bgfx::bgfx bgfx::bimg bgfx::bimg_decode PRIVATE concurrentqueue::concurrentqueue PRIVATE manifold::manifold PRIVATE spdlog::spdlog PRIVATE assimp::assimp PRIVATE imgui::imgui)
 
 # --- bgfx shaders (shaderc) -------------------------------------------------
 # Derive the vcpkg/install prefix from the resolved bgfx config location so
@@ -102,7 +102,7 @@ function(bgfx_compile_shader outvar src stage platform profile array_name)
 endfunction()
 
 set(_shader_headers "")
-foreach(_shader cube textured)
+foreach(_shader cube textured imgui)
     foreach(_stage vs fs)
         if(_stage STREQUAL "vs")
             set(_type vertex)

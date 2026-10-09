@@ -17,8 +17,11 @@
 QT_BEGIN_NAMESPACE
 class QMouseEvent;
 class QWheelEvent;
+class QKeyEvent;
 class QTimer;
 QT_END_NAMESPACE
+
+struct ImDrawData;
 
 class BgfxWindow : public QWidget
 {
@@ -37,6 +40,8 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
+    void keyReleaseEvent(QKeyEvent* event) override;
 
 private:
     bool initBgfx();
@@ -50,6 +55,12 @@ private:
     void drawModelWithTransient();
     void drawAxis3D();
     void drawLight();
+
+    // ImGui on bgfx (rendered on overlay view 2, in physical pixels).
+    bool initImGui();
+    void shutdownImGui();
+    void imguiNewFrame();
+    void imguiRender(const ImDrawData* drawData);
 private:
     bool m_bgfxInitialized = false;
     bool m_cubeInitialized = false;
@@ -92,6 +103,16 @@ private:
     uint32_t                 m_lightIndexCount = 0;
     bool                     m_lightBuilt = false;
     bx::Vec3                 m_lightPos = {50.0f, 50.0f, 50.0f};
+
+    // ImGui backend resources.
+    bool                 m_imguiInitialized = false;
+    bgfx::VertexLayout   m_imguiLayout;
+    bgfx::ProgramHandle  m_imguiProgram   = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle  m_imguiTexUniform = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle  m_imguiFontTex   = BGFX_INVALID_HANDLE;
+    uint32_t             m_imguiFbWidth   = 0;  // physical pixels, set each frame
+    uint32_t             m_imguiFbHeight  = 0;
+    bool                 m_imguiShowDemo  = false;
 
     // Orbit camera
     bool  m_leftDragging   = false;
