@@ -17,6 +17,7 @@ find_package(manifold CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 find_package(concurrentqueue CONFIG REQUIRED)
+find_package(imgui CONFIG REQUIRED)
 
 set(PROJECT_SOURCES
         main.cpp
@@ -60,7 +61,7 @@ else()
     endif()
 endif()
 
-target_link_libraries(bgfxQt PRIVATE Qt6::OpenGLWidgets PRIVATE Qt${QT_VERSION_MAJOR}::Widgets PRIVATE bgfx::bx bgfx::bgfx bgfx::bimg bgfx::bimg_decode PRIVATE concurrentqueue::concurrentqueue PRIVATE manifold::manifold PRIVATE spdlog::spdlog PRIVATE assimp::assimp)
+target_link_libraries(bgfxQt PRIVATE Qt6::OpenGLWidgets PRIVATE Qt${QT_VERSION_MAJOR}::Widgets PRIVATE imgui::imgui PRIVATE bgfx::bx bgfx::bgfx bgfx::bimg bgfx::bimg_decode PRIVATE concurrentqueue::concurrentqueue PRIVATE manifold::manifold PRIVATE spdlog::spdlog PRIVATE assimp::assimp)
 
 # --- bgfx shaders (shaderc) -------------------------------------------------
 # Derive the vcpkg/install prefix from the resolved bgfx config location so
